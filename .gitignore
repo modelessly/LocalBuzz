@@ -1,0 +1,17 @@
+.DS_Store
+*.swp
+*.swo
+
+# Build artifacts
+build/
+dist/
+.build/
+DerivedData/
+
+# Dependency folders
+node_modules/
+
+# Local environment
+.env
+.env.*
+!.env.example
