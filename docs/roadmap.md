@@ -1,47 +1,72 @@
 # Roadmap
 
-Use this roadmap to group product ambition without expanding the current build scope. Keep V1 narrow and move ideas forward only after the earlier phase has been validated.
+## Hackathon prototype
 
-## V1: Core Promise
+Stockholm tonight.
 
-Goal:
-`[The smallest complete version that proves the product should exist.]`
+- curated/normalized real events
+- map
+- timeline
+- WebMCP discovery/plan/repair
+- human locks and edits
+- deterministic disruption
+- staged repair
 
-Capabilities:
+## Post-hackathon: data depth
 
-- `[capability]`
-- `[capability]`
-- `[capability]`
+Potential:
 
-Validation:
+- more sanctioned event feeds
+- direct venue feeds
+- organizer submissions
+- weather
+- real-time transit
+- richer freshness/confidence model
+- improved deduplication
 
-- `[How we know V1 works]`
-- `[How we know V1 works]`
+## Post-hackathon: live city layer
 
-## V2: Depth
+Potential:
 
-Potential additions:
+- venue-confirmed status
+- opt-in community confirmations
+- wait/availability signals
+- last-minute openings
+- neighborhood pulse without personal tracking
 
-- `[addition]`
-- `[addition]`
-- `[addition]`
+## Post-hackathon: network effects
 
-Only consider these after V1 is usable and the core workflow is clear.
+Potential:
 
-## V3: Expansion
+- organizer accounts
+- direct publishing
+- venue incentives
+- community corrections
+- trust/reputation model
 
-Potential additions:
+## Post-hackathon: more intents
 
-- `[addition]`
-- `[addition]`
-- `[addition]`
+Potential:
 
-Expansion should follow evidence, not enthusiasm alone.
+- Best Date Ever
+- Two Hours Free
+- Solo but Social
+- Friends Visiting
+- Cheap Night Out
+- Something Weird
+- Rescue Our Night
 
-## Parking Lot
+## Proof-of-concept multi-city
 
-Ideas that are interesting but not committed:
+Stockholm and San Francisco share one city-scoped state model. A compact toggle is sufficient for two cities; switching clears the current night. Stockholm remains the primary contest path.
 
-- `[idea]`
-- `[idea]`
-- `[idea]`
+## Post-hackathon: city routing
+
+Potential:
+
+- hostname-derived city context such as `stockholm.localbuzz.com`
+- dropdown or search when the city count exceeds the compact toggle
+- per-city source adapters and freshness policies
+- preserving separate nights per city only when accounts or deliberate local persistence exist
+
+Do not add production routing or ingestion infrastructure during the challenge.

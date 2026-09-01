@@ -58,3 +58,9 @@ Add these only when useful:
 - CI configuration after there is something meaningful to verify.
 
 Avoid adding operational files just to make the repository look complete.
+
+## Place catalog maintenance
+
+Phase 2's qualified Place snapshots live in `src/data/places.ts` and `src/data/placeExpansion.ts`. Keep discovery evidence, official-source evidence, numeric operational claims and verification state separate. Unknown hours or prices must stay unknown; do not roll old values forward.
+
+For Foursquare candidate generation, obtain a Foursquare Open Source Places extract through the official access process linked in `docs/data-sources.md`, create a city-bounded NDJSON file locally, and run `npm run places:import -- --city <city> --bounds <minLat,maxLat,minLng,maxLng> --input <file> --output <file>`. The command does not download the global dataset and does not update the UI catalog. Review its exclusions and duplicates before using official business sites to promote candidates into the checked-in snapshot.

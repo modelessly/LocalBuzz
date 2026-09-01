@@ -1,0 +1,106 @@
+import { demoHappeningIds, demoInitialPlanIds, happenings } from "./happenings";
+import {
+  sanFranciscoDemoHappeningIds,
+  sanFranciscoDemoInitialPlanIds,
+  sanFranciscoHappenings,
+} from "./sanFranciscoHappenings";
+import { sanFranciscoPlaces, stockholmPlaces } from "./places";
+import type { CityId, CurrencyCode, Happening, Place, PlanConstraints } from "../domain/types";
+
+export type CityDefinition = {
+  id: CityId;
+  name: string;
+  timeZone: string;
+  locale: string;
+  currency: CurrencyCode;
+  mapCenter: [number, number];
+  mapZoom: number;
+  constraints: Omit<PlanConstraints, "latestEndTime">;
+  mission: string;
+  agentPrompt: string;
+  searchDefaults: {
+    query: string;
+    maxPrice: number;
+    maxDistanceKm: number;
+  };
+  happenings: Happening[];
+  places: Place[];
+  demoHappeningIds: string[];
+  demoInitialPlanIds: string[];
+  demoStarts: Record<string, string>;
+  repairHappeningIds: string[];
+  snapshotLabel: string;
+};
+
+const definitions: Record<CityId, CityDefinition> = {
+  stockholm: {
+    id: "stockholm",
+    name: "Stockholm",
+    timeZone: "Europe/Stockholm",
+    locale: "en-SE",
+    currency: "SEK",
+    mapCenter: [18.071, 59.325],
+    mapZoom: 12.35,
+    constraints: {
+      budget: 900,
+      currency: "SEK",
+      partySize: 2,
+      startLocation: { lat: 59.319, lng: 18.072, label: "Slussen" },
+    },
+    mission: "Near Slussen with a friend. 900 SEK, something unexpected, done by midnight.",
+    agentPrompt: "Build a surprising night near Slussen for two under 900 SEK, done by midnight.",
+    searchDefaults: {
+      query: "unexpected music",
+      maxPrice: 350,
+      maxDistanceKm: 8,
+    },
+    happenings,
+    places: stockholmPlaces,
+    demoHappeningIds,
+    demoInitialPlanIds,
+    demoStarts: {
+      "ukraine-festival": "2026-08-30T18:00:00+02:00",
+      "weeping-willows": "2026-08-30T19:30:00+02:00",
+      "montelius-night-walk": "2026-08-30T22:00:00+02:00",
+    },
+    repairHappeningIds: ["forro-dance", "fringe-closing", "ruby-wax", "fotografiska-late"],
+    snapshotLabel: "48 source-backed Stockholm happenings",
+  },
+  "san-francisco": {
+    id: "san-francisco",
+    name: "San Francisco",
+    timeZone: "America/Los_Angeles",
+    locale: "en-US",
+    currency: "USD",
+    mapCenter: [-122.438, 37.774],
+    mapZoom: 12,
+    constraints: {
+      budget: 75,
+      currency: "USD",
+      partySize: 2,
+      startLocation: { lat: 37.7599, lng: -122.4148, label: "Mission" },
+    },
+    mission: "Near Mission with a friend. $75, something unexpected, done by midnight.",
+    agentPrompt: "Build an unexpected San Francisco night near Mission for two under $75, done by midnight.",
+    searchDefaults: {
+      query: "local music",
+      maxPrice: 90,
+      maxDistanceKm: 12,
+    },
+    happenings: sanFranciscoHappenings,
+    places: sanFranciscoPlaces,
+    demoHappeningIds: sanFranciscoDemoHappeningIds,
+    demoInitialPlanIds: sanFranciscoDemoInitialPlanIds,
+    demoStarts: {
+      "sf-crucial-reggae": "2026-08-30T16:30:00-07:00",
+      "sf-haight-laughsbury": "2026-08-30T19:15:00-07:00",
+      "sf-sindustry": "2026-08-30T21:15:00-07:00",
+    },
+    repairHappeningIds: ["sf-bird-beckett-jam", "sf-dear-san-francisco", "sf-hamburger-eyes"],
+    snapshotLabel: "12 source-backed San Francisco happenings",
+  },
+};
+
+export const cityIds = Object.keys(definitions) as CityId[];
+
+export const getCityDefinition = (cityId: CityId) => definitions[cityId];

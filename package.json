@@ -1,0 +1,46 @@
+{
+  "name": "local-buzz",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc --noEmit",
+    "typecheck:pulse": "tsc --noEmit -p tsconfig.pulse.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pulse:sf": "vite-node scripts/collect-sf-pulse.ts",
+    "events:sf": "vite-node scripts/collect-sf-events.ts",
+    "events:refresh": "vite-node scripts/refresh-city-events.ts",
+    "places:import": "vite-node scripts/import-foursquare-places.ts",
+    "deploy": "npm run build && npx wrangler deploy",
+    "verify": "npm run lint && npm run typecheck && npm run typecheck:pulse && npm run test && npm run build"
+  },
+  "dependencies": {
+    "@modeless/design-system": "file:vendor/modeless-design-system-0.1.0.tgz",
+    "lucide-react": "^0.468.0",
+    "maplibre-gl": "5.24.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^26.4.0",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^5.0.0",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "globals": "^15.14.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.2",
+    "vite": "^6.0.3",
+    "vitest": "^2.1.8"
+  }
+}

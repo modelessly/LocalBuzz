@@ -1,50 +1,48 @@
 # Agent Onboarding
 
-Use this checklist at the start of a new product session or whenever an agent is reconnecting after a long gap.
+## What you are building
 
-## First 10 Minutes
+Local Buzz is a WebMCP-native two-city proof of concept for the 2026 WebMCP Challenge. Stockholm remains the primary contest screenplay; San Francisco proves the city model is portable.
 
-1. Read every repository documentation file.
-2. Identify the product name, user, core promise, and V1 scope.
-3. Check whether `PRODUCT.md` still contains placeholders.
-4. Check whether `ARCHITECTURE.md` names a real platform and stack.
-5. Review `TASKS.md` and `PLANNER.md` for current work.
-6. Review `DECISIONS.md` for durable constraints.
-7. Summarize understanding before making changes.
-8. Propose the smallest useful next increment.
-9. Name risks, tradeoffs, and missing information.
-10. Implement incrementally only after the above is clear.
+Do not interpret it as a general event-discovery app.
 
-## Readiness Check
+The required innovation is a human and personal agent manipulating the same evening plan through different interfaces.
 
-Before coding, answer:
+## Read before coding
 
-- What user problem are we solving first?
-- What is explicitly out of scope?
-- What is the smallest end-to-end workflow?
-- What can be verified after the first implementation pass?
-- Which docs need to be updated as part of the work?
+1. `AGENTS.md`
+2. `PRODUCT.md`
+3. `docs/v1-scope.md`
+4. `ARCHITECTURE.md`
+5. `PLANNER.md`
+6. `TASKS.md`
+7. `DECISIONS.md`
+8. `MEMORY.md`
+9. your agent-specific adapter
 
-## If The Product Brief Is Incomplete
+## Critical mental model
 
-Do not invent a large product.
+Human:
 
-Instead:
+- browses map
+- judges atmosphere
+- locks choices
+- changes mind
 
-- state the missing information
-- make conservative assumptions
-- keep the first implementation reversible
-- update `PLANNER.md` with open questions
-- prefer scaffolding only when it directly supports the known product direction
+Agent:
 
-## Handoff Expectations
+- searches structured inventory
+- reconciles constraints
+- stages plans
+- reads current state
+- repairs around changes
 
-At the end of meaningful work, leave the next agent with:
+Both:
 
-- what changed
-- what was verified
-- what remains
-- known risks or gaps
-- files that matter most
+- use the same application model
 
-Use `PLANNER.md` for active handoff notes and `DECISIONS.md` for durable decisions.
+## The non-negotiable demo behavior
+
+Agent acts → UI changes → human intervenes → agent reads intervention → environment changes → agent repairs shared state → human accepts.
+
+If a proposed implementation does not strengthen that sequence, it is probably out of scope.

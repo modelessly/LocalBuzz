@@ -1,50 +1,203 @@
-# New Product Harness
+# Local Buzz
 
-An agent-ready starter folder for turning a product idea into a focused, buildable project.
+Local Buzz is a WebMCP-native web experience for discovering and shaping what to do in a city right now.
 
-This repository is intentionally lightweight. Clone it, rename it, add the product-specific PRD, and connect it to a coding agent such as Codex or Claude Code. The documentation gives the agent enough context to work quickly while preserving your preferred collaboration style: simple, incremental, reliable, and scope-aware.
+For the WebMCP Challenge, the primary screenplay focuses on Stockholm and one core interaction. The proof of concept also includes San Francisco to demonstrate that the interaction model is portable across cities:
 
-## How To Use This Template
+> A person and their personal agent collaboratively construct and repair a live evening in the same visual workspace.
 
-1. Rename the folder and repository to the new product name.
-2. Replace placeholder text in `PRODUCT.md` with the actual PRD or product brief.
-3. Choose the initial technical direction in `ARCHITECTURE.md`.
-4. Fill the first milestones in `TASKS.md` and `PLANNER.md`.
-5. Review `MEMORY.md` and keep or edit the durable working preferences.
-6. Follow `docs/repo-setup.md` for the clone-to-product checklist.
-7. Start the coding agent and ask it to read all repository docs before making changes.
-8. Record meaningful product and architecture decisions in `DECISIONS.md`.
+The human works through a map, event cards, and an evening timeline. The agent works through structured WebMCP tools. Both operate on the same application state.
 
-## Documentation Map
+## Contest thesis
 
-- `AGENTS.md`: canonical instructions for AI coding agents.
-- `CLAUDE.md`: Claude-specific entry point that defers to the canonical agent workflow.
-- `MEMORY.md`: durable cross-product preferences for future agent sessions.
-- `PRODUCT.md`: product brief and PRD template.
-- `ARCHITECTURE.md`: technical direction and architecture decision template.
-- `TASKS.md`: implementation backlog.
-- `PLANNER.md`: active planning board and handoff notes.
-- `DECISIONS.md`: append-only decision log.
-- `docs/agent-onboarding.md`: first-session checklist for coding agents.
-- `docs/design.md`: design principles and UX direction.
-- `docs/prompts.md`: reusable startup, planning, review, and handoff prompts.
-- `docs/release-checklist.md`: lightweight checklist before shipping or sharing.
-- `docs/repo-setup.md`: clone-to-product setup checklist.
-- `docs/v1-scope.md`: first-version scope boundaries.
-- `docs/roadmap.md`: phased product roadmap.
+Local Buzz is not an AI itinerary generator.
 
-## Template Principles
+It is a shared model of a night that stays alive.
 
-- Prefer simple, working product behavior over speculative systems.
-- Build incrementally and verify each meaningful change.
-- Keep the first version narrow enough to finish.
-- Avoid backend, auth, cloud services, AI features, social features, and new dependencies unless the PRD explicitly requires them.
-- Preserve emotional clarity: the product should have a clear user, clear job, and clear reason to exist.
+- Local Buzz knows the city.
+- The user's agent knows the user.
+- The human provides taste and judgment.
+- The agent handles complexity and constraint reconciliation.
+- The interface keeps both parties grounded in the same plan.
 
-## Suggested First Prompt
+This directly targets the WebMCP Challenge brief: build an app that becomes meaningfully better when people and their agents use it together.
 
-```text
-Read all repository documentation files first. Summarize your understanding of the product, propose a narrow implementation plan, identify risks and tradeoffs, and then begin with the smallest useful increment.
+## Deadline
+
+WebMCP Challenge submission deadline:
+
+- September 3, 2026
+- 1:00 PM PDT
+- 22:00 CEST in Sweden
+
+Internal target: have the submission substantially complete by Thursday afternoon CEST.
+
+## Prototype scope
+
+The contest prototype is deliberately narrow:
+
+- Cities: Stockholm and San Francisco; Stockholm remains the primary demo path
+- Time horizon: tonight / near-term evening
+- Data: small real dataset, enriched where needed
+- Core UI: map + event cards + evening timeline
+- Core collaboration loop:
+  1. agent searches
+  2. agent stages a plan
+  3. human edits or locks part of it
+  4. agent reads the changed state
+  5. agent repairs around the human decision
+  6. a simulated live disruption occurs
+  7. agent repairs only the affected portion
+  8. human accepts the result
+
+## Run locally
+
+Requirements: Node.js 20 or newer and npm.
+
+```bash
+npm install
+npm run dev
 ```
 
-For more reusable prompts, see `docs/prompts.md`.
+Open `http://127.0.0.1:5173`.
+
+Run the complete local verification gate:
+
+```bash
+npm run verify
+```
+
+Individual commands are available as `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build`.
+
+### San Francisco fresh-data collectors
+
+When San Francisco is selected, the client requests `GET /api/events/san-francisco` and `GET /api/pulse/san-francisco`, adapts accepted records into the canonical happening model, and replaces that city's visible inventory in the same shared state used by the human UI and WebMCP tools. Both collectors use a server-only `XAI_API_KEY`, validate model output locally, and cache results for 12 minutes. Social signals are admitted only when their venue can be resolved to an existing source-backed place.
+
+The event route falls back to a small current set of directly verified official-calendar records when live web collection is empty or unavailable. That fallback is deliberately bounded and source-labelled; it is not a claim of complete city coverage.
+
+Run one broad collection cycle and save the normalized result to the ignored `fixtures/pulse/san-francisco.latest.json` file:
+
+```bash
+XAI_API_KEY=... npm run pulse:sf
+```
+
+For a curated search, use `npm run pulse:sf -- --mode=curated`. Optional groups can be supplied as `--groups=venues,culture`; supported groups are defined in `server/pulse/config/handles.ts`. `fixtures/pulse/san-francisco.example.json` demonstrates the response shape using explicitly synthetic content.
+
+Run the scheduled-event collector separately with `XAI_API_KEY=... npm run events:sf`. This diagnostic command writes its normalized response under the ignored `fixtures/events/` directory.
+
+For Cloudflare, set the key as a Worker secret rather than a Vite variable:
+
+```bash
+npx wrangler secret put XAI_API_KEY
+```
+
+## Implemented architecture
+
+- React 19, TypeScript, and Vite 6
+- `@modeless/design-system` 0.1.0 consumed from the checked-in package tarball under `vendor/`
+- MapLibre GL JS with OpenFreeMap's OpenStreetMap-based Liberty style
+- one client-side `LocalBuzzState` owned through `LocalBuzzActions`
+- 60 normalized happening occurrences across Stockholm and San Francisco with source URLs and validation tests
+- real, pannable basemaps for both cities with event markers and a plan-route overlay derived from domain state
+- static WebMCP registration through the current `document.modelContext` API
+- agent-specific motion driven by real WebMCP tool lifecycle events, with ghost staging and minimal-repair visualization
+- cached server-side San Francisco event and social-pulse routes feeding the canonical city state; no authentication, user profile, or analytics
+
+The UI and WebMCP callbacks receive the same `LocalBuzzActions` instance. For example, both a timeline lock click and `lock_plan_stop` call `actions.lockPlanStop(stopId)`.
+
+Phases 1 and 2 add first-class source-backed Places and mixed nights. Each city has 33 qualified snapshots spanning restaurants, bars, pubs, cocktail lounges, wine bars, music bars and clubs. Records with incomplete operating evidence remain searchable but cannot be staged as if their hours or price were known. The Events/Places surface and fifteen WebMCP tools share purpose, price, mood, neighborhood, kind and arrival-time filtering plus staged review, party-size budget, timing, lock, accept/reject, surgical event repair and review-only event/Place acquisition.
+
+Generate bounded Foursquare Open Source Places review candidates with `npm run places:import`; see `docs/data-sources.md`. Import output never enters the UI automatically.
+
+## WebMCP tools
+
+| Tool | Visible/shared-state effect |
+| --- | --- |
+| `search_happenings` | Searches normalized inventory and returns source-backed candidates. |
+| `show_candidates` | Emphasizes pins/cards on the human interface. |
+| `stage_evening_plan` | Places a reviewable, uncommitted plan on the timeline. |
+| `read_current_plan` | Returns canonical state, staged state, human locks, edits, and disruptions. |
+| `lock_plan_stop` | Applies the same lock used by the timeline UI. |
+| `repair_plan` | Replaces only disrupted, unlocked stops and stages the result. |
+| `accept_staged_changes` | Commits the staged plan after approval. |
+| `reject_staged_changes` | Discards staged changes without touching the accepted plan. |
+
+Tools use strict JSON schemas, structured errors, and abort-signal-owned registration. Unsupported browsers still get the complete human experience.
+
+The conversation does not happen inside Local Buzz. The user talks to their personal agent in a WebMCP-aware browser's agent panel. While this page is open, the browser discovers the tools above; the agent calls them and the resulting candidates or staged plan appear in the same map and timeline the human can edit. The empty timeline's manual-demo button is only a fallback for presentations without an agent.
+
+## Map provider
+
+The prototype uses [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) with [OpenFreeMap](https://openfreemap.org/quick_start/). OpenFreeMap's public instance requires no account or API key and automatically supplies the required OpenStreetMap/OpenMapTiles attribution through MapLibre. It does not provide an SLA, so a production launch should either sponsor/self-host the same open stack or choose a supported commercial tile provider.
+
+## Prototype data disclosure
+
+The fixture intentionally separates:
+
+- source-backed fields: titles, venues, coordinates, dates/times, source links, and source-provided pricing where available;
+- Local Buzz enrichment: mood tags, estimated visit duration, spontaneity, and experience fit;
+- prototype simulation: one deterministic availability change used to demonstrate plan repair.
+
+The fixtures are contest snapshots verified on August 30, 2026—not a claim of live availability. Source links remain visible on every card. The simulated update is labeled in the timeline, activity bar, and documentation. Switching cities resets the active night so plan state and inventory cannot cross city boundaries.
+
+## Deployment
+
+The production target is `https://localbuzz.modeless.io`.
+
+Verified public deployment:
+
+- [https://local-buzz.alsmith.workers.dev](https://local-buzz.alsmith.workers.dev)
+- HTTP 200
+- all eight WebMCP tools discovered in the ChatGPT in-app browser
+- `Permissions-Policy: tools=(self)` confirmed on the deployed response
+
+The repository uses Cloudflare static assets through `wrangler.jsonc`, with the existing Vite `dist` output:
+
+```bash
+npm run deploy
+```
+
+The Worker is named `local-buzz`; its configuration includes the intended `localbuzz.modeless.io` custom-domain route. Attaching that shared-domain route is intentionally a separately approved operational step. Wrangler's `not_found_handling` preserves the single-page fallback. The static `_headers` file applies the same-origin `tools` permissions policy.
+
+Deployment requires an authenticated Cloudflare account and DNS access; no credentials are stored in this repository.
+
+## Repository source-of-truth order
+
+When working in the existing product harness, use this order:
+
+1. `AGENTS.md`
+2. `PRODUCT.md`
+3. `docs/v1-scope.md`
+4. `ARCHITECTURE.md`
+5. `PLANNER.md`
+6. `TASKS.md`
+7. `DECISIONS.md`
+8. `MEMORY.md`
+9. `CODEX.md` or other agent adapter
+
+Existing harness conventions and Modeless implementation rules take precedence over generic assumptions in this package.
+
+## Agent start here
+
+For a coding agent:
+
+1. Read `CODEX.md`.
+2. Inspect the existing repository before changing anything.
+3. Read all product and architecture documents.
+4. Follow the existing Modeless harness conventions.
+5. Update existing files in place rather than creating a nested scaffold.
+6. Build the human interaction path first.
+7. Expose the same application functions through WebMCP.
+8. Do not expand scope until the demo loop is working end to end.
+
+## Event ingestion
+
+Run a bounded server-side refresh with `npm run events:refresh -- stockholm` or `npm run events:refresh -- san-francisco`. Visit Sweden requires no credential. Ticketmaster is optional through server-only `TICKETMASTER_API_KEY`; a missing key reports that source unavailable and preserves last-good inventory. See `.env.example` and `docs/event-ingestion.md`.
+
+## Official references
+
+- Challenge: https://webmcp.devpost.com/
+- Resources: https://webmcp.devpost.com/resources
+- WebMCP repository: https://github.com/webmachinelearning/webmcp
+- WebMCP explainer/spec: https://webmachinelearning.github.io/webmcp/
+- OpenAI showcase: https://developers.openai.com/showcase?view=webmcp-apps

@@ -1,4 +1,14 @@
 .DS_Store
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+fixtures/pulse/*.latest.json
+fixtures/place-import/*.json
+npm-debug.log*
 *.swp
 *.swo
 

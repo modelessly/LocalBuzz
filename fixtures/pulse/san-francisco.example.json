@@ -1,0 +1,35 @@
+{
+  "generatedAt": "2026-08-31T18:00:00.000Z",
+  "city": "San Francisco",
+  "signals": [
+    {
+      "id": "sf-pulse-example",
+      "kind": "live_signal",
+      "title": "Illustrative live venue signal",
+      "summary": "Synthetic example showing the normalized contract; this is not a claim about a real event.",
+      "category": "music",
+      "location": {
+        "name": "Example venue",
+        "neighborhood": "SoMa",
+        "address": null
+      },
+      "timing": {
+        "firstSeen": "2026-08-31T17:20:00.000Z",
+        "latestSeen": "2026-08-31T17:45:00.000Z",
+        "likelyActiveUntil": "2026-08-31T20:00:00.000Z"
+      },
+      "social": {
+        "evidenceCount": 2,
+        "independentSourceCount": 2,
+        "confidence": 0.82,
+        "source": "x",
+        "sourceUrls": [
+          "https://x.com/example/status/1000000000000000001",
+          "https://x.com/example2/status/1000000000000000002"
+        ]
+      },
+      "tags": ["synthetic", "example"],
+      "reasonActionable": "Synthetic example of why a current, nearby signal could be actionable."
+    }
+  ]
+}
