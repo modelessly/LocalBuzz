@@ -8,13 +8,15 @@ The browser agent and human interface share the same `LocalBuzzActions` instance
 
 | Tool | Contract |
 | --- | --- |
-| `search_happenings` | Query active-city events by text, time, category, per-person price and distance. |
+| `search_happenings` | Query active-city events by text, time, category, per-person price and distance; optionally filter by happening kind, minimum Buzz Score and current actionability. |
 | `show_candidates` | Show selected event IDs on the shared map and cards without adding them. |
 | `search_places` | Query Places by purpose, price, mood, neighborhood, kind, distance and open-at time. |
 | `show_place_candidates` | Show selected Place IDs without adding them. |
 | `read_place_details` | Return the complete canonical Place record and operating evidence. |
 
 Search results never enter the itinerary automatically.
+
+Social results return `kind` plus optional `socialPulse` evidence, confidence, freshness, actionability and deterministic Buzz Score fields. Existing calls remain valid. A standalone pulse signal normally has unknown price and therefore cannot bypass the hard-budget planning guard; social support merged into a canonical scheduled event keeps that event's normal planning contract.
 
 ## Direct itinerary editing
 

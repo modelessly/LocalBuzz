@@ -1,15 +1,16 @@
-import { PULSE_CATEGORIES } from "./types";
+import { PULSE_CATEGORIES, PULSE_KINDS } from "./types";
+import type { CityPulseConfig } from "./config/cities";
 
-export const SF_PULSE_RESPONSE_SCHEMA = {
+export function pulseResponseSchema(city: CityPulseConfig) { return {
   type: "object",
   additionalProperties: false,
   required: ["generatedAt", "city", "signals"],
   properties: {
     generatedAt: { type: "string" },
-    city: { type: "string", const: "San Francisco" },
+    city: { type: "string", const: city.name },
     signals: {
       type: "array",
-      maxItems: 15,
+      maxItems: 10,
       items: {
         type: "object",
         additionalProperties: false,
@@ -27,7 +28,7 @@ export const SF_PULSE_RESPONSE_SCHEMA = {
         ],
         properties: {
           id: { type: "string" },
-          kind: { type: "string", const: "live_signal" },
+          kind: { type: "string", enum: [...PULSE_KINDS] },
           title: { type: "string" },
           summary: { type: "string" },
           category: { type: "string", enum: [...PULSE_CATEGORIES] },
@@ -57,6 +58,7 @@ export const SF_PULSE_RESPONSE_SCHEMA = {
             required: [
               "evidenceCount",
               "independentSourceCount",
+              "sourceAccounts",
               "confidence",
               "source",
               "sourceUrls",
@@ -64,6 +66,7 @@ export const SF_PULSE_RESPONSE_SCHEMA = {
             properties: {
               evidenceCount: { type: "integer", minimum: 0 },
               independentSourceCount: { type: "integer", minimum: 0 },
+              sourceAccounts: { type: "array", items: { type: "string" } },
               confidence: { type: "number", minimum: 0, maximum: 1 },
               source: { type: "string", const: "x" },
               sourceUrls: {
@@ -78,4 +81,4 @@ export const SF_PULSE_RESPONSE_SCHEMA = {
       },
     },
   },
-} as const;
+} as const; }

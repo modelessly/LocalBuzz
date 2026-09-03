@@ -69,6 +69,19 @@ describe("WebMCP registration", () => {
     expect(read()).toMatchObject({ discoveryMode: "places", candidatePlaceIds: ["sthlm-stigbergets-fot"], candidateReasonOrigin: "agent" });
   });
 
+  it("exposes social kind, Buzz Score and actionability filters without changing existing calls", async () => {
+    const { actions, read } = setup();
+    read().happenings.push({ ...read().happenings[0], id: "pulse-filter-test", kind: "live_signal", socialPulse: {
+      evidenceCount: 2, independentSourceCount: 2, sourceAccounts: ["one", "two"], confidence: 0.78,
+      latestSeen: "2026-08-30T11:50:00.000Z", likelyActiveUntil: "2026-08-30T14:00:00.000Z",
+      sourceUrls: ["https://x.com/one/status/1", "https://x.com/two/status/2"], freshnessMinutes: 10,
+      actionableNow: true, buzzScore: 82, buzzLabel: "Very Hot", reasonActionable: "The activity is currently underway.",
+    } });
+    const tool = createWebMcpTools(actions).find((item) => item.name === "search_happenings");
+    const result = await tool?.execute({ happeningKinds: ["live_signal"], minBuzzScore: 80, actionableNow: true }, { signal: new AbortController().signal });
+    expect(result).toMatchObject({ ok: true, count: 1, happenings: [{ id: "pulse-filter-test", kind: "live_signal", socialPulse: { buzzScore: 82 } }] });
+  });
+
   it("registers every tool with a shared abort lifecycle", async () => {
     const signals: AbortSignal[] = [];
     const modelContext: WebMcpModelContext = { registerTool: vi.fn(async (_tool, options) => { if (options?.signal) signals.push(options.signal); }) };

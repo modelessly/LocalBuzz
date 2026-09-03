@@ -22,6 +22,7 @@ import type {
 import { buildEventLead, buildPlaceLead, canonicalEventFromLead, canonicalPlaceFromLead, type ProposeEventLeadInput, type ProposePlaceLeadInput } from "./discovery";
 import { deduplicateHappenings } from "./happeningDedup";
 import { isNightlyHappening, occurrenceEndMs } from "./happeningTiming";
+import { mergePulseIntoHappenings, pulseSourceStatus, type CityPulsePayload } from "./cityPulse";
 
 export type PlanHappeningInput = { happeningId: string; plannedStart: string };
 export type AddPlaceStopInput = { placeId: string; purpose: PlacePurpose; plannedStart: string };
@@ -333,6 +334,43 @@ export class LocalBuzzActions {
     return next;
   }
 
+  applyCityPulse(payload: CityPulsePayload, now = this.now()): DomainResult<{ applied: boolean; liveSignalCount: number; enrichedCount: number }> {
+    const state = this.read();
+    if (state.activeCityId !== payload.cityId) return { ok: true, applied: false, liveSignalCount: 0, enrichedCount: 0 };
+    const scheduled = state.happenings
+      .filter((item) => item.kind === undefined || item.kind === "scheduled_event")
+      .map((item) => { const { socialPulse: _socialPulse, ...rest } = item; void _socialPulse; return rest as Happening; });
+    const merged = mergePulseIntoHappenings(payload.cityId, scheduled, state.places, payload, now);
+    const wire = pulseSourceStatus(payload.cityId, payload, now.toISOString());
+    const source: EventSourceState = {
+      sourceId: wire.sourceId, publisher: wire.publisher, status: wire.status, attemptedAt: wire.attemptedAt,
+      lastSuccessfulRefresh: wire.lastSuccessfulRefresh, acceptedCount: wire.status === "fresh" ? wire.eventCount : 0,
+      rejectedCount: wire.rejectedCount, retainedCount: wire.retainedCount, expiredCount: wire.expiredCount,
+      emptySuccessful: wire.emptySuccessful, message: wire.message,
+    };
+    this.update((current) => ({
+      ...current,
+      happenings: merged.happenings,
+      visibleHappeningIds: current.visibleHappeningIds.filter((id) => merged.happenings.some((item) => item.id === id)),
+      candidateHappeningIds: current.candidateHappeningIds.filter((id) => merged.happenings.some((item) => item.id === id)),
+      eventInventory: { ...current.eventInventory, sources: [...current.eventInventory.sources.filter((item) => item.sourceId !== source.sourceId), source] },
+      activityMessage: `${merged.liveSignalCount} live signal${merged.liveSignalCount === 1 ? "" : "s"} · ${merged.enrichedCount} scheduled event${merged.enrichedCount === 1 ? "" : "s"} socially supported.`,
+    }));
+    return { ok: true, applied: true, liveSignalCount: merged.liveSignalCount, enrichedCount: merged.enrichedCount };
+  }
+
+  failCityPulse(cityId: CityId, message = "Social pulse is unavailable; canonical events are unchanged.", now = this.now()): DomainResult<{ applied: boolean }> {
+    const state = this.read();
+    if (state.activeCityId !== cityId) return { ok: true, applied: false };
+    const sourceId = `xai-${cityId}-social-pulse`;
+    const happenings = state.happenings.filter((item) => item.kind === undefined || item.kind === "scheduled_event").map((item) => {
+      const { socialPulse: _socialPulse, ...rest } = item; void _socialPulse; return rest as Happening;
+    });
+    const source: EventSourceState = { sourceId, publisher: "xAI X Search social pulse", status: "unavailable", attemptedAt: now.toISOString(), acceptedCount: 0, rejectedCount: 0, retainedCount: 0, expiredCount: 0, emptySuccessful: false, message };
+    this.update((current) => ({ ...current, happenings, visibleHappeningIds: current.visibleHappeningIds.filter((id) => happenings.some((item) => item.id === id)), candidateHappeningIds: current.candidateHappeningIds.filter((id) => happenings.some((item) => item.id === id)), eventInventory: { ...current.eventInventory, sources: [...current.eventInventory.sources.filter((item) => item.sourceId !== sourceId), source] } }));
+    return { ok: true, applied: true };
+  }
+
   stageDiscoveryLeads(leads: DiscoveryLead[]): DomainResult<{ leads: DiscoveryLead[]; count: number }> {
     const state = this.read();
     if (leads.some((lead) => lead.cityId !== state.activeCityId)) return error("WRONG_CITY", "Discovery leads must match the active city before entering the review frontier.");
@@ -449,11 +487,18 @@ export class LocalBuzzActions {
       .filter((item) =>
         filters.categories?.length ? filters.categories.includes(item.category) : true,
       )
+      .filter((item) => filters.happeningKinds?.length ? filters.happeningKinds.includes(item.kind ?? "scheduled_event") : true)
+      .filter((item) => filters.minBuzzScore === undefined ? true : (item.socialPulse?.buzzScore ?? 0) >= filters.minBuzzScore)
+      .filter((item) => filters.actionableNow === undefined ? true : Boolean(item.socialPulse?.actionableNow) === filters.actionableNow)
       .filter((item) => {
         if (!filters.near || filters.maxDistanceKm === undefined) return true;
         return distanceKm(filters.near, item.venue) <= filters.maxDistanceKm;
       })
       .sort((a, b) => {
+        if (activeAt !== undefined || filters.actionableNow) {
+          const byBuzz = (b.socialPulse?.buzzScore ?? 0) - (a.socialPulse?.buzzScore ?? 0);
+          if (byBuzz !== 0) return byBuzz;
+        }
         if (filters.near) {
           const byDistance = distanceKm(filters.near, a.venue) - distanceKm(filters.near, b.venue);
           if (Math.abs(byDistance) > 0.1) return byDistance;
@@ -675,7 +720,7 @@ export class LocalBuzzActions {
     }
     const eligible = happenings.filter(isNightlyHappening);
     const incomingIds = new Set(eligible.map((item) => item.id));
-    const retainedSnapshots = state.happenings.filter((item) => !incomingIds.has(item.id) && isNightlyHappening(item));
+    const retainedSnapshots = state.happenings.filter((item) => !incomingIds.has(item.id) && (item.kind === undefined || item.kind === "scheduled_event") && isNightlyHappening(item));
     const merged = [...eligible, ...retainedSnapshots];
     const currentCount = merged.filter((item) => isUnexpiredHappening(item, cityId, now)).length;
     const expiredCount = merged.filter((item) => item.cityId === cityId && occurrenceEndMs(item) <= now.getTime()).length;
@@ -749,7 +794,7 @@ export class LocalBuzzActions {
     }
     const incoming = deduplicateHappenings(snapshot.happenings.filter(isNightlyHappening));
     const incomingIds = new Set(incoming.map((item) => item.id));
-    const retainedHistorical = state.happenings.filter((item) => !incomingIds.has(item.id) && isNightlyHappening(item));
+    const retainedHistorical = state.happenings.filter((item) => !incomingIds.has(item.id) && (item.kind === undefined || item.kind === "scheduled_event") && isNightlyHappening(item));
     const merged = deduplicateHappenings([...incoming, ...retainedHistorical]);
     const current = merged.filter((item) => isUnexpiredHappening(item, snapshot.cityId, now));
     const retainedCount = current.filter((item) => !incomingIds.has(item.id)).length;

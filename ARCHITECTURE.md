@@ -227,19 +227,17 @@ Each city definition owns its inventory, currency, time zone, map origin, agent 
 
 No ingestion pipeline unless a source can be integrated quickly and reliably.
 
-## San Francisco social-pulse experiment
+## Two-city social pulse
 
-`worker/index.ts` handles `GET /api/pulse/san-francisco` before falling back to the static Vite assets. The route calls xAI's Responses API with the built-in X Search tool, then subjects the structured model output to local validation before returning it. The key is available only as the Worker secret `XAI_API_KEY`.
+`worker/index.ts` and the local Vite middleware handle `GET /api/pulse/stockholm` and `GET /api/pulse/san-francisco`. Each route calls xAI's Responses API with the built-in X Search tool in parallel broad and trusted-account passes, then locally validates, merges, scores and bounds the structured output. The key remains server-only as `XAI_API_KEY`.
 
-The route supports `mode=broad` and `mode=curated`; curated handle groups live in `server/pulse/config/handles.ts`, outside collector logic. Results are cached at the edge for 12 minutes. Failures return an explicit unavailable payload and are not cached. Logs contain timing, counts, and sanitized error messages, never raw posts or authorization headers.
+City-specific boundaries, terms, time zones, neighborhoods, trusted account groups and geocoding hints live in `server/pulse/config/cities.ts`, outside collector logic. Successful results are cached for 12 minutes. The Worker retains the last successful payload and labels it `retained` when a later collection fails; without a last-good payload the route returns explicit `unavailable`. Logs contain timing and counts, never raw posts or authorization headers.
 
 ## San Francisco fresh event inventory
 
 `worker/index.ts` also handles `GET /api/events/san-francisco`. A server-side xAI Web Search collector discovers current scheduled events, while a local validator enforces exact times, physical San Francisco coordinates, safe source URLs, temporal integrity, and minimum confidence. Empty or unavailable live collection falls back to a bounded set of directly verified official-calendar records with a fixed verification timestamp.
 
-On city selection, `src/lib/sanFranciscoFresh.ts` loads both routes concurrently and adapts their accepted records into canonical `Happening` values. `LocalBuzzActions.replaceCityHappenings` updates the active city's shared inventory without rewriting current-plan references; expired records remain available only as preserved snapshots and are excluded from current result IDs. Pulse records without a resolvable known venue are omitted.
-
-This collector is deliberately disconnected from `LocalBuzzState`, the cards, and WebMCP tools until signal quality has been evaluated independently.
+On city selection, canonical ingestion and pulse refresh independently. `LocalBuzzActions.applyCityPulse` strips expired prior pulse decoration, merges support into scheduled events by venue, admits only safely resolved standalone signals, and never modifies `currentPlan`. Time-window search remains authoritative, so Tomorrow and non-today date views do not inherit current pulse signals.
 
 ## Agent motion architecture
 

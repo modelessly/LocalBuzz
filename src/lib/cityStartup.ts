@@ -1,8 +1,10 @@
 import type { CityId, DomainResult } from "../domain/types";
 import type { LocalBuzzActions } from "../domain/store";
 import { loadCityEventSnapshot, type CityEventSnapshotPayload } from "./cityEvents";
+import { loadCityPulse, type CityPulsePayload } from "./cityPulse";
 
 export type CitySnapshotLoader = (cityId: CityId, signal?: AbortSignal) => Promise<CityEventSnapshotPayload>;
+export type CityPulseLoader = (cityId: CityId, signal?: AbortSignal) => Promise<CityPulsePayload>;
 
 export type RefreshCityDataOptions = {
   cityId: CityId;
@@ -65,5 +67,26 @@ export async function refreshCityData({
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+export async function refreshCityPulseData(options: {
+  cityId: CityId; actions: LocalBuzzActions; signal?: AbortSignal; loader?: CityPulseLoader; timeoutMs?: number; now?: () => Date;
+}): Promise<DomainResult<{ applied: boolean; liveSignalCount: number; enrichedCount: number }>> {
+  const { cityId, actions, signal, loader = loadCityPulse, timeoutMs = 100_000, now = () => new Date() } = options;
+  const controller = new AbortController(); let timedOut = false;
+  const onAbort = () => controller.abort(signal?.reason);
+  signal?.addEventListener("abort", onAbort, { once: true });
+  const timer = setTimeout(() => { timedOut = true; controller.abort("timeout"); }, timeoutMs);
+  try {
+    const payload = await loader(cityId, controller.signal);
+    if (signal?.aborted) return { ok: true, applied: false, liveSignalCount: 0, enrichedCount: 0 };
+    return actions.applyCityPulse(payload, now());
+  } catch {
+    if (signal?.aborted && !timedOut) return { ok: true, applied: false, liveSignalCount: 0, enrichedCount: 0 };
+    actions.failCityPulse(cityId, timedOut ? "Social pulse timed out; canonical events are unchanged." : undefined, now());
+    return { ok: true, applied: false, liveSignalCount: 0, enrichedCount: 0 };
+  } finally {
+    clearTimeout(timer); signal?.removeEventListener("abort", onAbort);
   }
 }

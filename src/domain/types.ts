@@ -14,6 +14,33 @@ export type CityId = "stockholm" | "san-francisco";
 
 export type CurrencyCode = "SEK" | "USD";
 
+export type HappeningKind =
+  | "scheduled_event"
+  | "live_signal"
+  | "venue_activity"
+  | "pop_up"
+  | "city_condition"
+  | "community_report";
+
+export type BuzzLabel = "Quiet" | "Starting" | "Buzzing" | "Hot Now" | "Very Hot";
+
+export type SocialPulseMetadata = {
+  evidenceCount: number;
+  independentSourceCount: number;
+  sourceAccounts: string[];
+  confidence: number;
+  firstSeen?: string;
+  latestSeen: string;
+  likelyActiveUntil?: string;
+  sourceUrls: string[];
+  freshnessMinutes: number;
+  actionableNow: boolean;
+  buzzScore: number;
+  buzzLabel: BuzzLabel;
+  reasonActionable: string;
+  mergedIntoScheduledEvent?: boolean;
+};
+
 export type PlaceKind =
   | "restaurant"
   | "bar"
@@ -107,6 +134,7 @@ export type Availability =
 export type Happening = {
   id: string;
   cityId: CityId;
+  kind?: HappeningKind;
   title: string;
   description?: string;
   category: HappeningCategory;
@@ -151,6 +179,7 @@ export type Happening = {
     confidence?: number;
     enrichmentMethod?: "manual" | "derived";
   };
+  socialPulse?: SocialPulseMetadata;
 };
 
 export type SearchFilters = {
@@ -160,6 +189,9 @@ export type SearchFilters = {
   activeAt?: string;
   maxPrice?: number;
   categories?: HappeningCategory[];
+  happeningKinds?: HappeningKind[];
+  minBuzzScore?: number;
+  actionableNow?: boolean;
   near?: { lat: number; lng: number };
   maxDistanceKm?: number;
   maxResults?: number;

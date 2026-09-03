@@ -69,19 +69,20 @@ npm run verify
 
 Individual commands are available as `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
-### San Francisco fresh-data collectors
+### Two-city social pulse
 
-When San Francisco is selected, the client requests `GET /api/events/san-francisco` and `GET /api/pulse/san-francisco`, adapts accepted records into the canonical happening model, and replaces that city's visible inventory in the same shared state used by the human UI and WebMCP tools. Both collectors use a server-only `XAI_API_KEY`, validate model output locally, and cache results for 12 minutes. Social signals are admitted only when their venue can be resolved to an existing source-backed place.
+For either city, the client loads canonical ingestion from `GET /api/ingestion/:city` and independently requests `GET /api/pulse/:city`. Pulse collection performs one broad X Search pass and one trusted-account pass, validates both locally, deduplicates evidence/accounts, computes a deterministic Buzz Score, and caches successful results for 12 minutes. A slow or failed pulse never delays or erases canonical events. Social signals enter shared UI/WebMCP state only when their venue resolves to an existing source-backed event or Place; matching scheduled events are enriched instead of duplicated.
 
 The event route falls back to a small current set of directly verified official-calendar records when live web collection is empty or unavailable. That fallback is deliberately bounded and source-labelled; it is not a claim of complete city coverage.
 
-Run one broad collection cycle and save the normalized result to the ignored `fixtures/pulse/san-francisco.latest.json` file:
+Run a full two-pass collection cycle and save the normalized result under the ignored `fixtures/pulse/` directory:
 
 ```bash
-XAI_API_KEY=... npm run pulse:sf
+npm run pulse:city -- --city=stockholm
+npm run pulse:city -- --city=san-francisco
 ```
 
-For a curated search, use `npm run pulse:sf -- --mode=curated`. Optional groups can be supplied as `--groups=venues,culture`; supported groups are defined in `server/pulse/config/handles.ts`. `fixtures/pulse/san-francisco.example.json` demonstrates the response shape using explicitly synthetic content.
+`pulse:sf` remains a compatibility alias. Optional trusted groups can be supplied with `--groups=venues,culture`; the canonical city boundary, local terms, neighborhoods, handle groups and geocoding hints live in `server/pulse/config/cities.ts`. Raw post text and images are not retained.
 
 Run the scheduled-event collector separately with `XAI_API_KEY=... npm run events:sf`. This diagnostic command writes its normalized response under the ignored `fixtures/events/` directory.
 

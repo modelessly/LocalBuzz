@@ -59,3 +59,9 @@ Before every direct plan mutation, Local Buzz checks cancellation/sellout and ca
 Run the app without `XAI_API_KEY`, `TICKETMASTER_API_KEY`, `BILLETTO_API_KEY` and `BILLETTO_API_SECRET` to exercise the supported degraded path. The source panel must show those collectors unavailable, pending first-party calendars disabled, and all canonical Places still browseable. `/api/ingestion/:city` is the canonical startup endpoint; `/api/events/san-francisco` is compatibility/diagnostic only and must not be wired as a second browser state mutation. Never treat an HTTP 200 with zero records as proof of freshness; inspect `emptySuccessful`, source status and last-success time.
 
 Billetto is capped at seven 100-record pages per run and one run per hour. Ticketmaster is one request per city per run and one run per hour. Provider credentials are header/query transport values only: do not print request objects, full provider URLs, environment values or raw failure bodies. Safe source-health output is limited to counts, aggregated rejection reasons and sanitized status messages.
+
+## Social-pulse operations
+
+The Stockholm and San Francisco pulse endpoints use `XAI_API_KEY` and optional `XAI_MODEL` only in server/Worker code. Each uncached city cycle makes two bounded Responses API calls: one broad X Search and one `allowed_x_handles` search. The cache duration is 12 minutes. Cloudflare retains the most recent successful normalized payload and marks it `retained` after a later failure; local development retains the last successful in-memory payload for the process lifetime.
+
+Run one diagnostic cycle per city with `npm run pulse:city -- --city=stockholm` and `npm run pulse:city -- --city=san-francisco`. The generated `fixtures/pulse/*.latest.json` files are ignored and must not be committed. Review trusted handles periodically and remove any whose ownership or public status can no longer be verified.

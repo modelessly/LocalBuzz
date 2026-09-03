@@ -2,18 +2,19 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { collectSanFranciscoEvents } from "./server/events/collector";
 import { verifiedSanFranciscoFallback, withVerifiedFallback } from "./server/events/fallback";
-import { collectSanFranciscoPulse, unavailablePulse } from "./server/pulse/collector";
+import { collectCityPulse, unavailablePulse } from "./server/pulse/collector";
 import { refreshCityEvents } from "./server/ingestion/refresh";
 import type { CityEventSnapshot } from "./server/ingestion/types";
 import { getCityDefinition } from "./src/data/cities";
+import type { CityId } from "./src/domain/types";
 
 const CACHE_MS = 12 * 60 * 1000;
 
 function localFreshDataApi(apiKey: string | undefined, model: string | undefined, ticketmasterApiKey: string | undefined, billettoApiKey: string | undefined, billettoApiSecret: string | undefined): Plugin {
   let eventsCache: { expiresAt: number; payload: unknown } | undefined;
-  let pulseCache: { expiresAt: number; payload: unknown } | undefined;
+  const pulseCaches = new Map<CityId, { expiresAt: number; payload: Record<string, unknown> }>();
   let eventsPending: Promise<unknown> | undefined;
-  let pulsePending: Promise<unknown> | undefined;
+  const pulsePending = new Map<CityId, Promise<Record<string, unknown>>>();
   const ingestionSnapshots = new Map<string, CityEventSnapshot>();
   return {
     name: "local-buzz-fresh-data-api",
@@ -21,7 +22,8 @@ function localFreshDataApi(apiKey: string | undefined, model: string | undefined
       server.middlewares.use(async (request, response, next) => {
         const pathname = request.url ? new URL(request.url, "http://127.0.0.1").pathname : "";
         const ingestionCity = pathname.match(/^\/api\/ingestion\/(stockholm|san-francisco)$/)?.[1] as "stockholm" | "san-francisco" | undefined;
-        if (pathname !== "/api/events/san-francisco" && pathname !== "/api/pulse/san-francisco" && !ingestionCity) {
+        const pulseCity = pathname.match(/^\/api\/pulse\/(stockholm|san-francisco)$/)?.[1] as CityId | undefined;
+        if (pathname !== "/api/events/san-francisco" && !pulseCity && !ingestionCity) {
           next();
           return;
         }
@@ -50,7 +52,7 @@ function localFreshDataApi(apiKey: string | undefined, model: string | undefined
           response.statusCode = pathname.includes("/events/") ? 200 : 503;
           response.end(JSON.stringify(pathname.includes("/events/")
             ? { ...verifiedSanFranciscoFallback(), status: "unavailable", error: "XAI_API_KEY is not configured." }
-            : unavailablePulse()));
+            : unavailablePulse(pulseCity)));
           return;
         }
         try {
@@ -71,17 +73,23 @@ function localFreshDataApi(apiKey: string | undefined, model: string | undefined
             }
             response.end(JSON.stringify(eventsPending ? await eventsPending : eventsCache?.payload));
           } else {
+            const cityId = pulseCity ?? "san-francisco";
+            const pulseCache = pulseCaches.get(cityId);
             if (!pulseCache || pulseCache.expiresAt <= now) {
-              pulseCache = { expiresAt: now + CACHE_MS, payload: unavailablePulse() };
-              pulsePending ??= collectSanFranciscoPulse({ apiKey, model })
+              if (!pulsePending.has(cityId)) pulsePending.set(cityId, collectCityPulse({ cityId, apiKey, model })
                 .then((result) => {
-                  pulseCache = { expiresAt: Date.now() + CACHE_MS, payload: result.payload };
-                  return pulseCache.payload;
+                  pulseCaches.set(cityId, { expiresAt: Date.now() + CACHE_MS, payload: result.payload as unknown as Record<string, unknown> });
+                  return result.payload as unknown as Record<string, unknown>;
                 })
-                .catch(() => pulseCache?.payload)
-                .finally(() => { pulsePending = undefined; });
+                .catch(() => {
+                  const retained = pulseCaches.get(cityId)?.payload;
+                  return retained ? { ...retained, status: "retained", retainedAt: retained.generatedAt } : unavailablePulse(cityId) as unknown as Record<string, unknown>;
+                })
+                .finally(() => { pulsePending.delete(cityId); }));
             }
-            response.end(JSON.stringify(pulseCache.payload));
+            const payload = pulsePending.get(cityId) ? await pulsePending.get(cityId) : pulseCaches.get(cityId)?.payload;
+            response.statusCode = payload?.status === "unavailable" ? 503 : 200;
+            response.end(JSON.stringify(payload ?? unavailablePulse(cityId)));
           }
         } catch (error) {
           if (pathname.includes("/events/")) {
@@ -90,7 +98,7 @@ function localFreshDataApi(apiKey: string | undefined, model: string | undefined
           } else {
             response.statusCode = 503;
             response.end(JSON.stringify({
-              ...unavailablePulse(),
+              ...unavailablePulse(pulseCity),
               error: error instanceof Error ? error.message : "fresh data unavailable",
             }));
           }

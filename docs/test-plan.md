@@ -211,3 +211,9 @@ The complete repository verification remains `npm run verify`. Provider live cal
 ## P0 startup and Place-fallback regression contract
 
 Deterministic coverage now includes available/unavailable cold starts, delayed completion, timeout/rejection, empty success, malformed response, last-good retention, expired exclusion, stale-request ordering, city switch during refresh, zero-event Place display, candidate subset restoration, UI/WebMCP inventory agreement, both two-stop default Place fallbacks, and plan immutability during refresh. Browser verification must inspect both cities with credentials unavailable, open source details, surface and restore two Place candidates, stage but not accept each Place fallback, and confirm no expired fixture appears as current.
+
+## Two-city social-pulse regression contract
+
+Automated coverage proves both city configs, trusted-account deduplication and the 20-handle ceiling; strict city/kind/category/time/location/source validation; stale and unsafe evidence rejection; independent confidence and deterministic 0–100 Buzz Score; broad/trusted pass merging; partial-pass survival and total-failure behavior; scheduled-event enrichment versus standalone Place-resolved signals; pulse failure isolation from canonical inventory and `currentPlan`; and WebMCP kind/score/actionability filters. Time-window regression remains the authority for Right Now, Later, Tomorrow and explicit dates.
+
+Live checks run exactly one uncached two-pass cycle per city and report only normalized counts, latency, validation failures and sample titles/scores. Raw posts, authorization headers and environment values must never appear in logs or committed fixtures.

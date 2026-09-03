@@ -1,10 +1,12 @@
-import { SF_PULSE_RESPONSE_SCHEMA } from "./schema";
+import { pulseResponseSchema } from "./schema";
 import type { CollectionMode } from "./types";
+import { getCityPulseConfig, type CityPulseConfig } from "./config/cities";
 
 export const DEFAULT_XAI_MODEL = "grok-4.6";
 const XAI_RESPONSES_URL = "https://api.x.ai/v1/responses";
 
 interface XaiSearchOptions {
+  city?: CityPulseConfig;
   apiKey: string;
   model?: string;
   prompt: string;
@@ -37,6 +39,7 @@ function extractOutputText(response: unknown): string {
 export async function searchXForPulse(options: XaiSearchOptions): Promise<{ raw: unknown; latencyMs: number; model: string }> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const model = options.model ?? DEFAULT_XAI_MODEL;
+  const city = options.city ?? getCityPulseConfig("san-francisco");
   const yesterday = new Date(options.now.getTime() - 24 * 60 * 60 * 1000);
   const tool: Record<string, unknown> = {
     type: "x_search",
@@ -63,12 +66,12 @@ export async function searchXForPulse(options: XaiSearchOptions): Promise<{ raw:
       text: {
         format: {
           type: "json_schema",
-          name: "local_buzz_sf_pulse",
-          schema: SF_PULSE_RESPONSE_SCHEMA,
+          name: `local_buzz_${city.id.replace("-", "_")}_pulse`,
+          schema: pulseResponseSchema(city),
           strict: true,
         },
       },
-      prompt_cache_key: `local-buzz-sf-pulse-${options.mode}`,
+      prompt_cache_key: `local-buzz-${city.id}-pulse-${options.mode}`,
     }),
     signal: AbortSignal.timeout(90_000),
   });

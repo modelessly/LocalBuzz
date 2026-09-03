@@ -8,6 +8,13 @@ const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 export function eventSignalState(happening: Happening, nowMs: number): EventSignalState {
   if (["sold_out", "cancelled"].includes(happening.status.availability)) return "quiet";
 
+  if (happening.socialPulse) {
+    const activeUntil = happening.socialPulse.likelyActiveUntil ? Date.parse(happening.socialPulse.likelyActiveUntil) : Number.NaN;
+    if (happening.socialPulse.actionableNow && (!Number.isFinite(activeUntil) || activeUntil > nowMs)) return "live";
+    if (happening.socialPulse.freshnessMinutes <= 180) return "starting-soon";
+    return "stale";
+  }
+
   const startMs = Date.parse(happening.timing.start);
   const explicitEndMs = happening.timing.end ? Date.parse(happening.timing.end) : Number.NaN;
   const estimatedEndMs = Number.isFinite(startMs)

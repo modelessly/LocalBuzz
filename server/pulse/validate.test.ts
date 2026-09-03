@@ -19,6 +19,7 @@ function signal(overrides: Record<string, unknown> = {}) {
     social: {
       evidenceCount: 2,
       independentSourceCount: 2,
+      sourceAccounts: ["example", "example2"],
       confidence: 0.82,
       source: "x",
       sourceUrls: [
@@ -34,13 +35,19 @@ function signal(overrides: Record<string, unknown> = {}) {
 
 describe("validatePulseResponse", () => {
   it("normalizes a current, independently supported signal", () => {
-    const result = validatePulseResponse({ signals: [signal()] }, NOW);
+    const result = validatePulseResponse({ city: "San Francisco", signals: [signal()] }, NOW);
     expect(result.rejected).toEqual([]);
     expect(result.payload.signals).toHaveLength(1);
     expect(result.payload.signals[0]).toMatchObject({
-      id: expect.stringMatching(/^sf-pulse-/),
+      id: expect.stringMatching(/^san-francisco-pulse-/),
       tags: ["live", "music"],
     });
+  });
+
+  it("normalizes Stockholm independently and rejects the wrong city", () => {
+    const stockholm = signal({ location: { name: "Fasching", neighborhood: "Norrmalm", address: null } });
+    expect(validatePulseResponse({ city: "Stockholm", signals: [stockholm] }, "stockholm", NOW).payload.signals).toHaveLength(1);
+    expect(validatePulseResponse({ city: "San Francisco", signals: [stockholm] }, "stockholm", NOW).rejected).toContain("response shape or city is invalid");
   });
 
   it("rejects stale evidence", () => {
@@ -63,6 +70,7 @@ describe("validatePulseResponse", () => {
     const candidate = signal();
     candidate.social.evidenceCount = 1;
     candidate.social.independentSourceCount = 1;
+    candidate.social.sourceAccounts = ["example"];
     const rejected = validatePulseResponse({ signals: [candidate] }, NOW);
     expect(rejected.payload.signals).toEqual([]);
 

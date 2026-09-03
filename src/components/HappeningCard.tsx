@@ -29,13 +29,15 @@ export function HappeningCard({
   onAdd,
 }: HappeningCardProps) {
   const unavailable = ["sold_out", "cancelled"].includes(happening.status.availability);
+  const pulse = happening.socialPulse;
+  const planningReady = happening.commerce.priceMin !== undefined && happening.kind !== "city_condition" && happening.kind !== "community_report";
   return (
     <article
       className={`happening-card ${candidate ? "is-candidate" : ""} ${selected ? "is-selected" : ""} ${inPlan ? "is-in-plan" : ""} ${unavailable ? "is-unavailable" : ""}`}
       onClick={onSelect}
     >
       <div className="happening-card__topline">
-        <span>{categoryLabel(happening.category)}</span>
+        <span>{happening.kind && happening.kind !== "scheduled_event" ? categoryLabel(happening.kind) : categoryLabel(happening.category)}</span>
         {unavailable ? (
           <SignalBadge variant="error">unavailable</SignalBadge>
         ) : inPlan ? (
@@ -46,6 +48,17 @@ export function HappeningCard({
       </div>
       <h3>{happening.title}</h3>
       <p className="happening-card__description">{happening.description}</p>
+      {pulse ? (
+        <div className="happening-card__pulse" aria-label={`Buzz Score ${pulse.buzzScore} out of 100, ${pulse.buzzLabel}`}>
+          <div><strong>{pulse.buzzLabel}</strong><span>Buzz Score {pulse.buzzScore}</span></div>
+          <p>{pulse.reasonActionable}</p>
+          <small>{pulse.independentSourceCount} independent source{pulse.independentSourceCount === 1 ? "" : "s"} · {pulse.freshnessMinutes} min old · confidence {Math.round(pulse.confidence * 100)}%</small>
+          <div className="happening-card__evidence">
+            {pulse.sourceUrls.slice(0, 3).map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Evidence {index + 1}<ArrowUpRight aria-hidden="true" size={11} /></a>)}
+          </div>
+        </div>
+      ) : null}
+      {pulse && !planningReady ? <p className="happening-card__pulse-note">Live evidence for discovery; itinerary use needs a confirmed price.</p> : null}
       <dl className="happening-card__meta">
         <div><Clock3 aria-hidden="true" size={14} /><span>{formatTime(happening.timing.start, timeZone)} · {priceLabel(happening.commerce.priceMin, happening.commerce.currency)}</span></div>
         <div><MapPin aria-hidden="true" size={14} /><span>{happening.venue.name} · {happening.venue.neighborhood}</span></div>
@@ -66,13 +79,13 @@ export function HappeningCard({
           <ModelessButton variant="outline" size="sm" onClick={onReject} aria-label={`Reject ${happening.title}`}>
             <X aria-hidden="true" size={14} /> Not this
           </ModelessButton>
-          {!inPlan ? <ModelessButton variant="signal" size="sm" onClick={onAdd}><Plus aria-hidden="true" size={14} /> Add event</ModelessButton> : null}
-          {canSwap && !inPlan ? <ModelessButton variant="outline" size="sm" onClick={onSwap}>
+          {!inPlan && planningReady ? <ModelessButton variant="signal" size="sm" onClick={onAdd}><Plus aria-hidden="true" size={14} /> Add event</ModelessButton> : null}
+          {canSwap && !inPlan && planningReady ? <ModelessButton variant="outline" size="sm" onClick={onSwap}>
             <RefreshCw aria-hidden="true" size={14} /> Swap in
           </ModelessButton> : null}
         </div>
       ) : null}
-      {!candidate && !unavailable && !inPlan ? (
+      {!candidate && !unavailable && !inPlan && planningReady ? (
         <div className="happening-card__actions" onClick={(event) => event.stopPropagation()}>
           <ModelessButton variant="signal" size="sm" onClick={onAdd}><Plus aria-hidden="true" size={14} /> Add event</ModelessButton>
         </div>

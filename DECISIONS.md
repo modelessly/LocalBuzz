@@ -565,3 +565,19 @@ Valid agent actions take effect immediately. Locks therefore become the hard pro
 
 Status:
 Accepted; supersedes “Stage Material Plan Changes” and the ghost-plan portion of “Make Agent Motion Explain Shared-State Changes.”
+
+---
+
+## 2026-09-03: Integrate A Bounded Two-City Social Pulse
+
+Decision:
+Generalize the server-side xAI X Search pulse to Stockholm and San Francisco, using independent broad and trusted-account passes, strict local validation, deterministic scoring and a 12-minute last-good cache. Merge venue-matched support into scheduled events and expose only safely resolved standalone signals in shared UI/WebMCP state.
+
+Reasoning:
+“Right Now” benefits from recent local evidence, but social posts are not canonical availability. Keeping the pulse additive, time-bounded and independently refreshable preserves trustworthy event inventory and the editable itinerary when xAI is slow or unavailable.
+
+Tradeoffs:
+Each uncached city refresh can make two paid searches. Signals without a known event or Place location are discarded, and standalone signals with unknown price cannot enter a hard-budget plan. Trusted handle ownership requires periodic operational review.
+
+Status:
+Accepted

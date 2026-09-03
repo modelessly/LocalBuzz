@@ -450,6 +450,7 @@ button:disabled { cursor: not-allowed; }
 .map-pin > span { position: absolute; transform: rotate(45deg); }
 .map-pin:hover { transform: rotate(-45deg) scale(1.12); border-color: hsl(var(--foreground)); }
 .map-pin.is-selected { transform: rotate(-45deg) scale(1.18); background: hsl(var(--acid-lime)); border-color: hsl(var(--acid-lime)); }
+.map-pin.is-social-pulse:not(.is-selected):not(.is-planned) { color: hsl(var(--off-black)); background: hsl(var(--viz-active-mint)); border-color: hsl(var(--viz-active-mint)); }
 .map-pin.is-candidate { box-shadow: 0 0 0 5px hsl(var(--primary) / .14), 0 6px 16px rgba(0,0,0,.38); }
 .map-pin.is-planned { color: hsl(var(--off-black)); background: hsl(var(--acid-lime)); border-color: hsl(var(--acid-lime)); font-family: var(--font-mono); font-size: 10px; font-weight: 700; }
 .map-pin.is-planned::before { display: none; }
@@ -502,6 +503,15 @@ button:disabled { cursor: not-allowed; }
 .legend-dot--plan { background: hsl(var(--acid-lime)); }
 .legend-dot--closed { background: hsl(var(--destructive)); }
 .legend-dot--live { background: hsl(var(--primary)); box-shadow: 0 0 0 3px hsl(var(--primary) / .15); animation: legend-live-pulse 2.2s ease-in-out infinite; }
+
+.happening-card__pulse { margin: 12px 0; padding: 10px 12px; border-left: 2px solid hsl(var(--viz-active-mint)); background: hsl(var(--viz-active-mint) / .08); }
+.happening-card__pulse > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.happening-card__pulse strong { color: hsl(var(--viz-active-mint)); font-family: var(--font-ui); font-size: 12px; text-transform: uppercase; }
+.happening-card__pulse span, .happening-card__pulse small { color: hsl(var(--muted-foreground)); font-family: var(--font-mono); font-size: 9px; }
+.happening-card__pulse p { margin: 6px 0; color: hsl(var(--foreground) / .86); font-size: 12px; line-height: 1.4; }
+.happening-card__evidence { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 7px; }
+.happening-card__evidence a { display: inline-flex; align-items: center; gap: 2px; color: hsl(var(--viz-active-mint)); font-family: var(--font-mono); font-size: 9px; text-decoration: none; }
+.happening-card__pulse-note { margin: -4px 0 10px; color: hsl(var(--muted-foreground)); font-family: var(--font-mono); font-size: 9px; }
 
 .timeline-empty {
   min-height: 470px;

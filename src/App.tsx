@@ -21,7 +21,7 @@ import {
   timeSelectionLabel,
   type TimeSelection,
 } from "./lib/timeSearch";
-import { refreshCityData } from "./lib/cityStartup";
+import { refreshCityData, refreshCityPulseData } from "./lib/cityStartup";
 import { browserTitle, candidateReasonLead, inventoryCountLabel, inventorySummaryLabel, placeCandidateSummary } from "./lib/presentation";
 import { registerWebMcp } from "./webmcp/register";
 import type { AgentActivity } from "./webmcp/activity";
@@ -99,6 +99,7 @@ export function App() {
     const refreshId = `${cityId}-${++refreshSequenceRef.current}`;
     setFeedback(undefined);
     void refreshCityData({ cityId, refreshId, actions, signal: controller.signal });
+    void refreshCityPulseData({ cityId, actions, signal: controller.signal });
     return () => controller.abort();
   }, [actions, state.activeCityId]);
 

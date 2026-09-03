@@ -1,8 +1,7 @@
-import { collectSanFranciscoPulse, unavailablePulse } from "../server/pulse/collector";
+import { collectCityPulse, unavailablePulse } from "../server/pulse/collector";
 import { collectSanFranciscoEvents } from "../server/events/collector";
 import { verifiedSanFranciscoFallback, withVerifiedFallback } from "../server/events/fallback";
-import { isHandleGroup, type SfHandleGroup } from "../server/pulse/config/handles";
-import type { CollectionMode } from "../server/pulse/types";
+import { isPulseHandleGroup, type PulseHandleGroup } from "../server/pulse/config/cities";
 import { refreshCityEvents } from "../server/ingestion/refresh";
 import type { CityEventSnapshot } from "../server/ingestion/types";
 import { getCityDefinition } from "../src/data/cities";
@@ -61,30 +60,25 @@ function json(payload: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(payload), { ...init, headers });
 }
 
-function parseOptions(url: URL): { mode: CollectionMode; groups?: SfHandleGroup[] } {
-  const requestedMode = url.searchParams.get("mode") ?? "broad";
-  if (requestedMode !== "broad" && requestedMode !== "curated") throw new Error("mode must be broad or curated");
-  if (requestedMode === "broad") return { mode: "broad" };
-
+function parsePulseGroups(url: URL): PulseHandleGroup[] | undefined {
   const rawGroups = url.searchParams.get("groups");
-  if (!rawGroups) return { mode: "curated" };
+  if (!rawGroups) return undefined;
   const groups = [...new Set(rawGroups.split(",").map((group) => group.trim()).filter(Boolean))];
-  if (groups.length === 0 || !groups.every(isHandleGroup)) throw new Error("groups contains an unknown curated handle group");
-  return { mode: "curated", groups };
+  if (groups.length === 0 || !groups.every(isPulseHandleGroup)) throw new Error("groups contains an unknown trusted handle group");
+  return groups;
 }
 
-async function pulseResponse(request: Request, env: Env, context: WorkerContext): Promise<Response> {
+async function pulseResponse(request: Request, env: Env, context: WorkerContext, cityId: CityId): Promise<Response> {
   const url = new URL(request.url);
-  let options: ReturnType<typeof parseOptions>;
+  let groups: PulseHandleGroup[] | undefined;
   try {
-    options = parseOptions(url);
+    groups = parsePulseGroups(url);
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "invalid request" }, { status: 400 });
   }
 
   const cacheUrl = new URL(url.origin + url.pathname);
-  cacheUrl.searchParams.set("mode", options.mode);
-  if (options.groups) cacheUrl.searchParams.set("groups", [...options.groups].sort().join(","));
+  if (groups) cacheUrl.searchParams.set("groups", [...groups].sort().join(","));
   const cacheKey = new Request(cacheUrl, { method: "GET" });
   const edgeCache = (caches as CacheStorage & { default: Cache }).default;
   const cached = await edgeCache.match(cacheKey);
@@ -95,19 +89,15 @@ async function pulseResponse(request: Request, env: Env, context: WorkerContext)
   }
 
   if (!env.XAI_API_KEY) {
-    console.error(JSON.stringify({ event: "sf_pulse_failure", reason: "missing_api_key" }));
-    return json(unavailablePulse(), { status: 503, headers: { "Cache-Control": "no-store" } });
+    console.error(JSON.stringify({ event: "city_pulse_failure", cityId, reason: "missing_api_key" }));
+    return json(unavailablePulse(cityId), { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 
+  const lastGoodKey = new Request(`${url.origin}/api/internal/last-good-pulse/${cityId}`, { method: "GET" });
   try {
-    const result = await collectSanFranciscoPulse({
-      apiKey: env.XAI_API_KEY,
-      model: env.XAI_MODEL,
-      ...options,
-    });
+    const result = await collectCityPulse({ cityId, apiKey: env.XAI_API_KEY, model: env.XAI_MODEL, groups });
     console.log(JSON.stringify({
-      event: "sf_pulse_collection",
-      mode: options.mode,
+      event: "city_pulse_collection", cityId,
       model: result.model,
       latencyMs: result.latencyMs,
       signalCount: result.payload.signals.length,
@@ -120,14 +110,19 @@ async function pulseResponse(request: Request, env: Env, context: WorkerContext)
       },
     });
     context.waitUntil(edgeCache.put(cacheKey, response.clone()));
+    context.waitUntil(edgeCache.put(lastGoodKey, json(result.payload, { headers: { "Cache-Control": "public, max-age=2592000" } })));
     return response;
   } catch (error) {
     console.error(JSON.stringify({
-      event: "sf_pulse_failure",
-      mode: options.mode,
+      event: "city_pulse_failure", cityId,
       message: error instanceof Error ? error.message : "unknown failure",
     }));
-    return json(unavailablePulse(), { status: 503, headers: { "Cache-Control": "no-store" } });
+    const retained = await edgeCache.match(lastGoodKey);
+    if (retained) {
+      const payload = await retained.json() as Record<string, unknown>;
+      return json({ ...payload, status: "retained", retainedAt: payload.generatedAt }, { headers: { "Cache-Control": `public, max-age=${CACHE_SECONDS}` } });
+    }
+    return json(unavailablePulse(cityId), { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }
 
@@ -166,9 +161,10 @@ async function eventsResponse(request: Request, env: Env, context: WorkerContext
 export default {
   async fetch(request: Request, env: Env, context: WorkerContext): Promise<Response> {
     const url = new URL(request.url);
-    if (url.pathname === "/api/pulse/san-francisco") {
+    const pulseCity = url.pathname.match(/^\/api\/pulse\/(stockholm|san-francisco)$/)?.[1] as CityId | undefined;
+    if (pulseCity) {
       if (request.method !== "GET") return json({ error: "method not allowed" }, { status: 405, headers: { Allow: "GET" } });
-      return pulseResponse(request, env, context);
+      return pulseResponse(request, env, context, pulseCity);
     }
     if (url.pathname === "/api/events/san-francisco") {
       if (request.method !== "GET") return json({ error: "method not allowed" }, { status: 405, headers: { Allow: "GET" } });

@@ -12,9 +12,22 @@ export const PULSE_CATEGORIES = [
 export type PulseCategory = (typeof PULSE_CATEGORIES)[number];
 export type CollectionMode = "broad" | "curated";
 
+export const PULSE_KINDS = [
+  "scheduled_event",
+  "live_signal",
+  "venue_activity",
+  "pop_up",
+  "city_condition",
+  "community_report",
+] as const;
+
+export type PulseKind = (typeof PULSE_KINDS)[number];
+export type PulseCityId = "stockholm" | "san-francisco";
+export type PulseBuzzLabel = "Quiet" | "Starting" | "Buzzing" | "Hot Now" | "Very Hot";
+
 export interface PulseSignal {
   id: string;
-  kind: "live_signal";
+  kind: PulseKind;
   title: string;
   summary: string;
   category: PulseCategory;
@@ -31,19 +44,26 @@ export interface PulseSignal {
   social: {
     evidenceCount: number;
     independentSourceCount: number;
+    sourceAccounts: string[];
     confidence: number;
     source: "x";
     sourceUrls: string[];
   };
   tags: string[];
   reasonActionable: string;
+  freshnessMinutes: number;
+  actionableNow: boolean;
+  buzzScore: number;
+  buzzLabel: PulseBuzzLabel;
 }
 
 export interface PulsePayload {
   generatedAt: string;
-  city: "San Francisco";
+  cityId: PulseCityId;
+  city: "San Francisco" | "Stockholm";
   signals: PulseSignal[];
-  status?: "unavailable";
+  status?: "fresh" | "retained" | "unavailable";
+  retainedAt?: string;
 }
 
 export interface ValidationResult {
@@ -54,4 +74,5 @@ export interface ValidationResult {
 export interface CollectionResult extends ValidationResult {
   latencyMs: number;
   model: string;
+  passes: Array<{ mode: CollectionMode; latencyMs: number; rejectedCount: number; signalCount: number }>;
 }

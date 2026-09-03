@@ -10,6 +10,7 @@ Normalize small source-backed Stockholm and San Francisco datasets into a stable
 type Happening = {
   id: string
   cityId: "stockholm" | "san-francisco"
+  kind?: "scheduled_event" | "live_signal" | "venue_activity" | "pop_up" | "city_condition" | "community_report"
 
   title: string
   description?: string
@@ -66,6 +67,23 @@ type Happening = {
     accessibilityNotes?: string[]
     confidence?: number
     enrichmentMethod?: "manual" | "derived"
+  }
+
+  socialPulse?: {
+    evidenceCount: number
+    independentSourceCount: number
+    sourceAccounts: string[]
+    confidence: number
+    firstSeen?: string
+    latestSeen: string
+    likelyActiveUntil?: string
+    sourceUrls: string[]
+    freshnessMinutes: number
+    actionableNow: boolean
+    buzzScore: number
+    buzzLabel: "Quiet" | "Starting" | "Buzzing" | "Hot Now" | "Very Hot"
+    reasonActionable: string
+    mergedIntoScheduledEvent?: boolean
   }
 
   media?: {

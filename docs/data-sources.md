@@ -40,11 +40,11 @@ Weather is supporting context rather than canonical plan state: a failed request
 
 Facebook and Instagram are discovery signals, not dependable citywide event APIs. A future product should support organizer-authorized Page or professional-account connections and a “send this event to Local Buzz” link flow. It should not depend on broad social scraping.
 
-### San Francisco X Search experiment
+### Stockholm and San Francisco X Search pulse
 
-The repository includes a server-side xAI Responses API collector using the built-in X Search tool. It supports broad semantic search and curated account groups, filters to evidence no older than three hours, and requires either two independent sources or an explicitly tagged official source. Local validation rejects stale timestamps, unrelated-city content, low confidence, inconsistent evidence counts, and non-X status URLs.
+The repository includes a server-side xAI Responses API collector using the built-in X Search tool for both supported cities. Each refresh runs a broad semantic pass and a trusted-account pass. Local validation rejects stale timestamps, unrelated-city content, low confidence, inconsistent evidence counts, non-X status URLs and unresolved source accounts. Evidence older than three hours is rejected unless multiple high-confidence sources explicitly support activity that remains active.
 
-The collector remains an evaluation feed rather than confirmed event availability. Successful responses are cached for 12 minutes, raw posts are not retained, and accepted signals are merged into the shared UI and WebMCP state only when their named venue resolves to a known source-backed place. The editable starter account list is in `server/pulse/config/handles.ts`; handles should be rechecked before production use because social account names and ownership can change.
+The pulse remains evidence rather than confirmed ticket or operating availability. Successful responses are cached for 12 minutes, raw posts are not retained, and accepted signals merge into the shared UI/WebMCP state only when the named venue resolves to a source-backed event or Place. The account lists in `server/pulse/config/cities.ts` are a controlled starter set and must be periodically rechecked because social account names and ownership can change.
 
 ### San Francisco scheduled-event refresh
 

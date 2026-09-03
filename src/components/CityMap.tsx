@@ -122,6 +122,7 @@ export function CityMap({
       const markerRoot = document.createElement("div");
       markerRoot.className = [
         "local-buzz-marker",
+        item.socialPulse ? "is-social-pulse" : "",
         signal !== "quiet" ? `is-${signal}` : "",
       ].filter(Boolean).join(" ");
 
@@ -129,6 +130,7 @@ export function CityMap({
       button.type = "button";
       button.className = [
         "map-pin",
+        item.socialPulse ? "is-social-pulse" : "",
         candidateIds.includes(item.id) ? "is-candidate" : "",
         selectedId === item.id ? "is-selected" : "",
         planned ? "is-planned" : "",
@@ -136,7 +138,7 @@ export function CityMap({
       ]
         .filter(Boolean)
         .join(" ");
-      button.ariaLabel = `${planned ? `Stop ${stopIndex + 1}: ` : ""}${item.title} at ${item.venue.name}`;
+      button.ariaLabel = `${planned ? `Stop ${stopIndex + 1}: ` : ""}${item.title} at ${item.venue.name}${item.socialPulse ? `, Buzz Score ${item.socialPulse.buzzScore}` : ""}`;
       button.title = `${item.title} · ${item.venue.name}`;
       const pinLabel = document.createElement("span");
       pinLabel.textContent = planned ? String(stopIndex + 1) : "";

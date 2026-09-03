@@ -3,7 +3,8 @@ import { eventSourceDescriptorsForCity } from "../data/eventSources";
 import { createInitialState, LocalBuzzActions } from "../domain/store";
 import type { CityId, Happening, LocalBuzzState } from "../domain/types";
 import type { CityEventSnapshotPayload, CityEventSourceStatus } from "./cityEvents";
-import { refreshCityData } from "./cityStartup";
+import { refreshCityData, refreshCityPulseData } from "./cityStartup";
+import type { CityPulsePayload } from "./cityPulse";
 
 const now = new Date("2026-09-02T12:00:00.000Z");
 
@@ -57,6 +58,11 @@ const deferred = <T,>() => {
 };
 
 describe("unified city startup", () => {
+  const pulse = (cityId: CityId, placeName: string): CityPulsePayload => ({
+    generatedAt: now.toISOString(), cityId, city: cityId === "stockholm" ? "Stockholm" : "San Francisco", status: "fresh",
+    signals: [{ id: `${cityId}-pulse`, kind: "live_signal", title: "Fresh nearby activity", summary: "Reported now.", category: "social", location: { name: placeName, neighborhood: "Central" }, timing: { firstSeen: "2026-09-02T11:30:00.000Z", latestSeen: "2026-09-02T11:50:00.000Z", likelyActiveUntil: "2026-09-02T14:00:00.000Z" }, social: { evidenceCount: 2, independentSourceCount: 2, sourceAccounts: ["one", "two"], confidence: 0.8, sourceUrls: ["https://x.com/one/status/1", "https://x.com/two/status/2"] }, tags: [], reasonActionable: "Two current reports support it.", freshnessMinutes: 10, actionableNow: true, buzzScore: 80, buzzLabel: "Very Hot" }],
+  });
+
   it("applies an available cold-start snapshot while keeping the Place catalog immediate", async () => {
     const { actions, read } = setup();
     expect(read().places).toHaveLength(33);
@@ -151,5 +157,24 @@ describe("unified city startup", () => {
     const before = structuredClone(read().currentPlan);
     await refreshCityData({ cityId: "san-francisco", refreshId: "plan-safe", actions, loader: async () => snapshot("san-francisco", [event("san-francisco", "plan-safe-event")]), now: () => now });
     expect(read().currentPlan).toEqual(before);
+  });
+
+  it("applies pulse independently without changing the current plan", async () => {
+    const { actions, read } = setup("san-francisco");
+    actions.addPlaceStop({ placeId: "sf-horsefeather", purpose: "dinner", plannedStart: "2026-09-02T18:00:00-07:00" });
+    const before = structuredClone(read().currentPlan);
+    const result = await refreshCityPulseData({ cityId: "san-francisco", actions, loader: async () => pulse("san-francisco", "Horsefeather"), now: () => now });
+    expect(result).toMatchObject({ ok: true, applied: true, liveSignalCount: 1 });
+    expect(read().currentPlan).toEqual(before);
+    expect(read().eventInventory.sources.at(-1)).toMatchObject({ sourceId: "xai-san-francisco-social-pulse", status: "fresh" });
+  });
+
+  it("degrades pulse failure without erasing canonical inventory", async () => {
+    const { actions, read } = setup("stockholm");
+    const before = read().happenings.length;
+    await refreshCityPulseData({ cityId: "stockholm", actions, loader: async () => { throw new Error("provider secret detail"); }, now: () => now });
+    expect(read().happenings).toHaveLength(before);
+    expect(read().eventInventory.sources.at(-1)).toMatchObject({ sourceId: "xai-stockholm-social-pulse", status: "unavailable", message: "Social pulse is unavailable; canonical events are unchanged." });
+    expect(read().eventInventory.sources.at(-1)?.message).not.toContain("secret");
   });
 });

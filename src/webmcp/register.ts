@@ -1,5 +1,5 @@
 import type { AddCustomPlaceStopInput, LocalBuzzActions, PlanHappeningInput, RepairInput } from "../domain/store";
-import type { CityId, DiscoveryLeadEvidence, EventDiscoveryFields, HappeningCategory, PlaceDiscoveryFields, PlaceKind, PlacePurpose, PlaceSearchFilters, SearchFilters } from "../domain/types";
+import type { CityId, DiscoveryLeadEvidence, EventDiscoveryFields, HappeningCategory, HappeningKind, PlaceDiscoveryFields, PlaceKind, PlacePurpose, PlaceSearchFilters, SearchFilters } from "../domain/types";
 import { executeWithAgentActivity, type AgentActivityReporter } from "./activity";
 
 const objectInput = (input: unknown): Record<string, unknown> =>
@@ -113,6 +113,9 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
             enum: ["live_music", "club", "comedy", "food_drink", "culture", "film", "talk", "market", "activity", "other"],
           },
         },
+        happeningKinds: { type: "array", items: { type: "string", enum: ["scheduled_event", "live_signal", "venue_activity", "pop_up", "city_condition", "community_report"] }, description: "Optional canonical or social-pulse kinds." },
+        minBuzzScore: { type: "number", minimum: 0, maximum: 100, description: "Minimum deterministic Buzz Score. Events without social support score zero." },
+        actionableNow: { type: "boolean", description: "When true, return only records backed by current actionable social evidence." },
         near: {
           type: "object",
           properties: { lat: { type: "number" }, lng: { type: "number" } },
@@ -134,6 +137,9 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
         endBefore: typeof value.endBefore === "string" ? value.endBefore : undefined,
         maxPrice: typeof value.maxPrice === "number" ? value.maxPrice : undefined,
         categories: stringArray(value.categories) as HappeningCategory[],
+        happeningKinds: stringArray(value.happeningKinds) as HappeningKind[],
+        minBuzzScore: typeof value.minBuzzScore === "number" ? value.minBuzzScore : undefined,
+        actionableNow: typeof value.actionableNow === "boolean" ? value.actionableNow : undefined,
         near:
           typeof nearValue.lat === "number" && typeof nearValue.lng === "number"
             ? { lat: nearValue.lat, lng: nearValue.lng }
@@ -157,6 +163,8 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
           availability: item.status.availability,
           moodTags: item.enrichment?.moodTags ?? [],
           source: item.source,
+          kind: item.kind ?? "scheduled_event",
+          socialPulse: item.socialPulse,
         })),
       };
     },

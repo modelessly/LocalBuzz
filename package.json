@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "pulse:sf": "vite-node scripts/collect-sf-pulse.ts",
+    "pulse:city": "vite-node scripts/collect-sf-pulse.ts",
     "events:sf": "vite-node scripts/collect-sf-events.ts",
     "events:refresh": "vite-node scripts/refresh-city-events.ts",
     "places:import": "vite-node scripts/import-foursquare-places.ts",
