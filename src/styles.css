@@ -622,6 +622,10 @@ button:disabled { cursor: not-allowed; }
 .candidate-reason button { padding: 7px 10px; color: hsl(var(--foreground)); background: transparent; border: 1px solid hsl(var(--border)); border-radius: 3px; cursor: pointer; font: inherit; }
 .candidate-reason button:hover { border-color: hsl(var(--primary)); }
 .happening-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.later-today { grid-column: 1 / -1; margin-top: 18px; }
+.later-today__heading { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; margin: 0 0 16px; }
+.later-today__heading h3 { margin: 0; color: hsl(var(--foreground)); font-family: var(--font-display); font-size: 26px; font-weight: 500; text-transform: uppercase; }
+.later-today__heading p { margin: 0; color: hsl(var(--muted-foreground)); font-family: var(--font-ui); font-size: 12px; }
 .catalog-empty { grid-column: 1 / -1; padding: 36px 24px; text-align: center; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
 .catalog-empty strong { display: block; color: hsl(var(--foreground)); font-family: var(--font-display); font-size: 18px; text-transform: uppercase; }
 .catalog-empty p { margin: 8px auto 16px; max-width: 520px; color: hsl(var(--muted-foreground)); }

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   getSearchWindow,
+  happeningsLaterToday,
   happeningSectionTitle,
   initialPopulatedTimeSelection,
   localDate,
+  shouldShowLaterTodayFallback,
   timeSelectionLabel,
 } from "./timeSearch";
 
@@ -78,5 +80,42 @@ describe("time selector search windows", () => {
       "America/Los_Angeles",
       new Date("2026-09-01T05:34:00.000Z"),
     )).toBe("now");
+  });
+
+  it("returns only available nightly events that start later on the same city-local day", () => {
+    const happenings = [
+      { id: "active-now", timing: { start: "2026-08-31T12:00:00Z", end: "2026-08-31T13:00:00Z" }, status: { availability: "available" } },
+      { id: "later-first", timing: { start: "2026-08-31T17:00:00Z", end: "2026-08-31T18:00:00Z" }, status: { availability: "available" } },
+      { id: "later-second", timing: { start: "2026-08-31T19:00:00Z", estimatedDurationMinutes: 90 }, status: { availability: "unknown" } },
+      { id: "sold-out", timing: { start: "2026-08-31T20:00:00Z", end: "2026-08-31T21:00:00Z" }, status: { availability: "sold_out" } },
+      { id: "tomorrow", timing: { start: "2026-08-31T22:30:00Z", end: "2026-08-31T23:30:00Z" }, status: { availability: "available" } },
+      { id: "multi-day", timing: { start: "2026-08-31T16:00:00Z", end: "2026-09-01T17:00:00Z" }, status: { availability: "available" } },
+    ] as const;
+
+    expect(happeningsLaterToday(happenings, TIME_ZONE, NOW).map((item) => item.id)).toEqual([
+      "later-first",
+      "later-second",
+    ]);
+  });
+
+  it("uses the selected city's midnight rather than the browser's calendar day", () => {
+    const happenings = [
+      { id: "sf-tonight", timing: { start: "2026-09-01T06:30:00Z", end: "2026-09-01T06:50:00Z" }, status: { availability: "available" } },
+      { id: "sf-tomorrow", timing: { start: "2026-09-01T07:30:00Z", end: "2026-09-01T08:30:00Z" }, status: { availability: "available" } },
+    ] as const;
+
+    expect(happeningsLaterToday(
+      happenings,
+      "America/Los_Angeles",
+      new Date("2026-09-01T05:30:00Z"),
+    ).map((item) => item.id)).toEqual(["sf-tonight"]);
+  });
+
+  it("shows the later-today fallback only for an unsearched empty Right Now window", () => {
+    expect(shouldShowLaterTodayFallback("now", "", 0, 3)).toBe(true);
+    expect(shouldShowLaterTodayFallback("now", "jazz", 0, 3)).toBe(false);
+    expect(shouldShowLaterTodayFallback("now", "", 1, 3)).toBe(false);
+    expect(shouldShowLaterTodayFallback("later", "", 0, 3)).toBe(false);
+    expect(shouldShowLaterTodayFallback("now", "", 0, 0)).toBe(false);
   });
 });

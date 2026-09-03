@@ -226,4 +226,6 @@ Panel independence also requires that the header own no full-width bottom border
 
 Candidate IDs must survive human search/filter narrowing and clearing, then reset on city switch. Price-presentation fixtures cover complete, partially known and entirely unknown totals. Date fixtures cover abbreviated visual output plus full accessible descriptions, and empty-result source checks cover both resettable searches and provider-incomplete windows.
 
+Right Now fallback coverage must confirm that an empty current window can show a separate Happening Later section containing available nightly events that start before city-local midnight, excluding active, unavailable, multi-day and next-day records. The fallback must not change the Right Now selection or appear for an explicit text search.
+
 Manual verification recreates the available equivalent of the Stockholm Surfers/concert itinerary, repeats locale-sensitive behavior in San Francisco, checks panel separation at desktop and stacked widths, reads `read_current_plan` around lock changes, and confirms agent highlights never collapse the time-window listing. When live inventory lacks a named fixture, report that limitation and use deterministic component/domain coverage rather than manufacturing a record.

@@ -62,6 +62,8 @@ Use a neighboring time selector with Right Now, Later, Tomorrow, and Pick a date
 
 `Right Now` shows only bounded events whose occurrence is active at the current city-local instant; multi-day passes and provider sale windows longer than 24 hours are not treated as live activity. `Later` shows events that start after the current instant and before local midnight. `Tomorrow` and picked dates show events starting within that local calendar day. Empty selections stay empty and never silently advance to another day. A completed source refresh must reapply the active selection rather than exposing the full unexpired catalog.
 
+When `Right Now` is empty, keep that honest empty state and follow it with a separate `Happening Later` section when canonical events remain later on the same city-local day. The map shows those same fallback events so its pins and visible cards stay aligned. This fallback does not change the selected time window, does not include tomorrow, and does not appear beneath an explicit zero-result text search.
+
 The UI should make it obvious which elements are:
 
 - available

@@ -1,4 +1,5 @@
 import type { Happening } from "../domain/types";
+import { happeningTimingEligibility } from "../domain/happeningTiming";
 
 export type TimeSelection = "now" | "later" | "tomorrow" | "date";
 
@@ -132,6 +133,43 @@ export function getSearchWindow(
   }
 
   return { activeAt: now.toISOString() };
+}
+
+type LaterTodayHappening = Pick<Happening, "timing" | "status">;
+
+export function happeningsLaterToday<T extends LaterTodayHappening>(
+  happenings: readonly T[],
+  timeZone: string,
+  now = new Date(),
+) {
+  const today = localDate(now, timeZone);
+  const endOfToday = Date.parse(
+    localDateTimeToIso(shiftIsoDate(today, 1), "00:00:00", timeZone),
+  );
+
+  return happenings
+    .filter((happening) => !["sold_out", "cancelled"].includes(happening.status.availability))
+    .filter((happening) => {
+      const timing = happeningTimingEligibility(
+        happening.timing.start,
+        happening.timing.end,
+        happening.timing.estimatedDurationMinutes,
+      );
+      return timing.eligible && timing.startMs > now.getTime() && timing.startMs < endOfToday;
+    })
+    .sort((a, b) => Date.parse(a.timing.start) - Date.parse(b.timing.start));
+}
+
+export function shouldShowLaterTodayFallback(
+  selection: TimeSelection,
+  query: string,
+  currentResultCount: number,
+  laterResultCount: number,
+) {
+  return selection === "now"
+    && query.trim().length === 0
+    && currentResultCount === 0
+    && laterResultCount > 0;
 }
 
 export function initialPopulatedTimeSelection(

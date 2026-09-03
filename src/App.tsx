@@ -13,10 +13,12 @@ import { createInitialState, LocalBuzzActions } from "./domain/store";
 import type { CityId, DomainResult, LocalBuzzState, PlaceKind, PlacePurpose, PlaceSearchFilters } from "./domain/types";
 import {
   getSearchWindow,
+  happeningsLaterToday,
   happeningSectionTitle,
   localDate,
   localDateTimeToIso,
   shiftIsoDate,
+  shouldShowLaterTodayFallback,
   timeSelectionLabel,
   type TimeSelection,
 } from "./lib/timeSearch";
@@ -72,6 +74,19 @@ export function App() {
     () => state.visiblePlaceIds.map((id) => state.places.find((item) => item.id === id)).filter((item): item is LocalBuzzState["places"][number] => Boolean(item)),
     [state.places, state.visiblePlaceIds],
   );
+  const laterTodayHappenings = useMemo(
+    () => happeningsLaterToday(state.happenings, city.timeZone),
+    [city.timeZone, state.happenings],
+  );
+  const showLaterToday = shouldShowLaterTodayFallback(
+    timeSelection,
+    query,
+    visibleHappenings.length,
+    laterTodayHappenings.length,
+  );
+  const mapVisibleHappeningIds = showLaterToday
+    ? laterTodayHappenings.map((happening) => happening.id)
+    : state.visibleHappeningIds;
   const placeNeighborhoods = useMemo(() => Array.from(new Set(state.places.map((place) => place.location.neighborhood))).sort(), [state.places]);
 
   const reportAgentActivity = useCallback((activity: AgentActivity) => {
@@ -374,7 +389,7 @@ export function App() {
             startLocation={city.constraints.startLocation}
             happenings={state.happenings}
             places={state.places}
-            visibleIds={state.visibleHappeningIds}
+            visibleIds={mapVisibleHappeningIds}
             visiblePlaceIds={state.visiblePlaceIds}
             candidateIds={state.candidateHappeningIds}
             candidatePlaceIds={state.candidatePlaceIds}
@@ -494,7 +509,34 @@ export function App() {
               onReject={() => rejectCandidate(happening.id)}
               onAdd={() => addEvent(happening.id)}
             />
-          )) : <div className="catalog-empty" role="status"><strong>No matching events</strong><p>{query.trim() ? "Nothing matched your search in this time window." : "No current events are available in Local Buzz for this time window. Source updates may be incomplete."}</p>{query.trim() ? <button type="button" onClick={() => { setQuery(""); restoreFullListing(); }}>Clear search</button> : null}</div> : visiblePlaces.length ? visiblePlaces.map((place) => (
+          )) : <>
+            <div className="catalog-empty" role="status"><strong>{query.trim() ? "No matching events" : "Nothing happening right now"}</strong><p>{query.trim() ? "Nothing matched your search in this time window." : "No current events are available in Local Buzz. Source updates may be incomplete."}</p>{query.trim() ? <button type="button" onClick={() => { setQuery(""); restoreFullListing(); }}>Clear search</button> : null}</div>
+            {showLaterToday ? (
+              <section className="later-today" aria-labelledby="later-today-title">
+                <div className="later-today__heading">
+                  <h3 id="later-today-title">Happening Later</h3>
+                  <p>Still today in {city.name}</p>
+                </div>
+                <div className="happening-grid">
+                  {laterTodayHappenings.map((happening) => (
+                    <HappeningCard
+                      key={happening.id}
+                      happening={happening}
+                      timeZone={city.timeZone}
+                      candidate={state.candidateHappeningIds.includes(happening.id)}
+                      selected={state.selectedHappeningId === happening.id}
+                      inPlan={Boolean(plan?.stops.some((stop) => stop.kind === "happening" && stop.happeningId === happening.id))}
+                      canSwap={Boolean(plan?.stops.some((stop) => stop.kind === "happening" && !stop.locked))}
+                      onSelect={() => actions.selectHappening(happening.id)}
+                      onSwap={() => swapIn(happening.id)}
+                      onReject={() => rejectCandidate(happening.id)}
+                      onAdd={() => addEvent(happening.id)}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </> : visiblePlaces.length ? visiblePlaces.map((place) => (
             <PlaceCard key={place.id} place={place} timeZone={city.timeZone} candidate={state.candidatePlaceIds.includes(place.id)} selected={state.selectedPlaceId === place.id}
               inPlan={Boolean(plan?.stops.some((stop) => stop.kind === "place" && stop.placeId === place.id))}
               onSelect={() => actions.selectPlace(place.id)} onAdd={(purpose) => addPlace(place.id, purpose)} />
