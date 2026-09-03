@@ -1,4 +1,4 @@
-import type { LocalBuzzActions, RepairInput, StageCustomPlaceInput, StageStopInput } from "../domain/store";
+import type { AddCustomPlaceStopInput, LocalBuzzActions, PlanHappeningInput, RepairInput } from "../domain/store";
 import type { CityId, DiscoveryLeadEvidence, EventDiscoveryFields, HappeningCategory, PlaceDiscoveryFields, PlaceKind, PlacePurpose, PlaceSearchFilters, SearchFilters } from "../domain/types";
 import { executeWithAgentActivity, type AgentActivityReporter } from "./activity";
 
@@ -39,7 +39,7 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
   {
     name: "propose_event_from_url",
     title: "Propose a public event for human review",
-    description: "Submit structured facts already read by the browser agent from a public HTTPS event or venue page. Local Buzz validates and stages a discovery lead immediately; it never fetches the URL, publishes canonically, or changes a night automatically.",
+    description: "Submit structured facts already read by the browser agent from a public HTTPS event or venue page. Local Buzz validates and creates a discovery lead immediately; it never fetches the URL, publishes canonically, or changes a night automatically.",
     inputSchema: { type: "object", properties: { ...proposalBaseSchema, fields: { type: "object", properties: {
       title: { type: "string", maxLength: 300 }, description: { type: "string", maxLength: 5000 }, category: { type: "string", enum: ["live_music", "club", "comedy", "food_drink", "culture", "film", "talk", "market", "activity", "other"] },
       venue: { type: "object", properties: { name: { type: "string", maxLength: 300 }, address: { type: "string", maxLength: 500 }, neighborhood: { type: "string", maxLength: 200 }, lat: { type: "number" }, lng: { type: "number" } }, additionalProperties: false },
@@ -66,7 +66,7 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
   {
     name: "propose_place_from_url",
     title: "Propose a public place for human review",
-    description: "Submit structured restaurant, bar, club or cafe facts already read from a public HTTPS page. Local Buzz stages a provisional discovery lead with missing-field and duplicate warnings; it does not fetch the URL, publish the Place, or stage a night.",
+    description: "Submit structured restaurant, bar, club or cafe facts already read from a public HTTPS page. Local Buzz creates a provisional discovery lead with missing-field and duplicate warnings; it does not fetch the URL, publish the Place, or change a night.",
     inputSchema: { type: "object", properties: { ...proposalBaseSchema, fields: { type: "object", properties: {
       name: { type: "string", maxLength: 300 }, officialWebsite: { type: "string", format: "uri" }, kind: { type: "string", enum: ["restaurant", "bar", "pub", "cocktail_lounge", "wine_bar", "music_bar", "club", "cafe"] },
       location: { type: "object", properties: { address: { type: "string", maxLength: 500 }, neighborhood: { type: "string", maxLength: 200 }, lat: { type: "number" }, lng: { type: "number" } }, additionalProperties: false },
@@ -98,7 +98,7 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
     name: "search_happenings",
     title: "Search happenings in the active city",
     description:
-      "Search Local Buzz's structured inventory for the city currently selected by the human, using time, budget, category, text, and distance constraints. Use this before showing candidates or staging a plan. This reads inventory and does not commit a plan.",
+      "Search Local Buzz's structured inventory for the city currently selected by the human, using time, budget, category, text, and distance constraints. Use this before showing candidates or building the itinerary. Search results are not added automatically.",
     inputSchema: {
       type: "object",
       properties: {
@@ -186,7 +186,7 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
   {
     name: "search_places",
     title: "Search places in the active city",
-    description: "Search the canonical Local Buzz place catalog by text, kind, purpose, price, open time and distance. Results retain source and verification metadata.",
+    description: "Search the canonical Local Buzz place catalog by text, kind, purpose, price, open time and distance. Results retain source evidence and checked dates.",
     inputSchema: {
       type: "object",
       properties: {
@@ -242,7 +242,7 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
   {
     name: "read_place_details",
     title: "Read canonical place details",
-    description: "Read one Place record including typed hours, service cutoffs, price, evidence, provenance and verification status before staging it.",
+    description: "Read one Place record including typed hours, service cutoffs, price, evidence, provenance and checked dates before adding it.",
     inputSchema: { type: "object", properties: { placeId: { type: "string" } }, required: ["placeId"], additionalProperties: false },
     annotations: { readOnlyHint: true, untrustedContentHint: false },
     execute(input) {
@@ -251,9 +251,9 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
     },
   },
   {
-    name: "stage_place_stop",
-    title: "Stage a canonical place stop",
-    description: "Append a dinner, quick-bite or drinks stop from the canonical Place catalog. The shared domain validates purpose, hours, duration, party-size cost, currency, overlap and latest end; the result remains staged.",
+    name: "add_place_stop",
+    title: "Add a canonical place stop",
+    description: "Add a dinner, quick-bite or drinks stop to the active itinerary. The shared domain validates purpose, hours, duration, party-size cost, currency, overlap and latest end before updating the visible plan.",
     inputSchema: { type: "object", properties: {
       placeId: { type: "string" }, purpose: { type: "string", enum: ["dinner", "quick_bite", "drinks", "late_drinks"] },
       plannedStart: { type: "string", format: "date-time" }, reason: { type: "string" },
@@ -262,13 +262,13 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
     execute(input) {
       const value = objectInput(input);
       if (typeof value.placeId !== "string" || typeof value.purpose !== "string" || typeof value.plannedStart !== "string") return toolError("placeId, purpose and plannedStart are required.");
-      return actions.stagePlaceStop({ placeId: value.placeId, purpose: value.purpose as PlacePurpose, plannedStart: value.plannedStart }, typeof value.reason === "string" ? value.reason : undefined);
+      return actions.addPlaceStop({ placeId: value.placeId, purpose: value.purpose as PlacePurpose, plannedStart: value.plannedStart }, typeof value.reason === "string" ? value.reason : undefined);
     },
   },
   {
-    name: "stage_custom_place",
-    title: "Stage an unverified custom place",
-    description: "Append a visibly unverified place using explicit location, duration, per-person price, currency and stated availability. Local Buzz validates the assumptions but does not add the place to the canonical catalog.",
+    name: "add_custom_place_stop",
+    title: "Add a custom place stop",
+    description: "Add a custom place to the active itinerary using explicit location, duration, per-person price, currency and stated availability. Local Buzz validates the assumptions but does not add the place to the canonical catalog.",
     inputSchema: { type: "object", properties: {
       name: { type: "string" }, purpose: { type: "string", enum: ["dinner", "quick_bite", "drinks", "late_drinks"] }, plannedStart: { type: "string", format: "date-time" },
       location: { type: "object", properties: { lat: { type: "number" }, lng: { type: "number" }, address: { type: "string" }, neighborhood: { type: "string" } }, required: ["lat", "lng", "address", "neighborhood"], additionalProperties: false },
@@ -279,15 +279,29 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
     execute(input) {
       const value = objectInput(input); const location = objectInput(value.location);
       if (typeof value.name !== "string" || typeof value.purpose !== "string" || typeof value.plannedStart !== "string" || typeof value.typicalVisitDurationMinutes !== "number" || typeof value.pricePerPerson !== "number" || (value.currency !== "SEK" && value.currency !== "USD") || typeof value.availableFrom !== "string" || typeof value.availableUntil !== "string" || typeof location.lat !== "number" || typeof location.lng !== "number" || typeof location.address !== "string" || typeof location.neighborhood !== "string") return toolError("Custom place fields do not match the required schema.");
-      const custom: StageCustomPlaceInput = { name: value.name, purpose: value.purpose as PlacePurpose, plannedStart: value.plannedStart, location: { lat: location.lat, lng: location.lng, address: location.address, neighborhood: location.neighborhood }, typicalVisitDurationMinutes: value.typicalVisitDurationMinutes, pricePerPerson: value.pricePerPerson, currency: value.currency, availableFrom: value.availableFrom, availableUntil: value.availableUntil, note: typeof value.note === "string" ? value.note : undefined };
-      return actions.stageCustomPlace(custom, typeof value.reason === "string" ? value.reason : undefined);
+      const custom: AddCustomPlaceStopInput = { name: value.name, purpose: value.purpose as PlacePurpose, plannedStart: value.plannedStart, location: { lat: location.lat, lng: location.lng, address: location.address, neighborhood: location.neighborhood }, typicalVisitDurationMinutes: value.typicalVisitDurationMinutes, pricePerPerson: value.pricePerPerson, currency: value.currency, availableFrom: value.availableFrom, availableUntil: value.availableUntil, note: typeof value.note === "string" ? value.note : undefined };
+      return actions.addCustomPlaceStop(custom, typeof value.reason === "string" ? value.reason : undefined);
     },
   },
   {
-    name: "stage_evening_plan",
-    title: "Stage an evening plan",
+    name: "add_happening_stop",
+    title: "Add an event stop",
+    description: "Add one selected event to the active itinerary. The event must be available, priced, within its occurrence window, non-overlapping and within the active city budget and end-time constraints.",
+    inputSchema: { type: "object", properties: {
+      happeningId: { type: "string" }, plannedStart: { type: "string", format: "date-time" }, reason: { type: "string" },
+    }, required: ["happeningId", "plannedStart"], additionalProperties: false },
+    annotations: { readOnlyHint: false, untrustedContentHint: false },
+    execute(input) {
+      const value = objectInput(input);
+      if (typeof value.happeningId !== "string" || typeof value.plannedStart !== "string") return toolError("happeningId and plannedStart are required.");
+      return actions.addHappeningStop({ happeningId: value.happeningId, plannedStart: value.plannedStart }, typeof value.reason === "string" ? value.reason : undefined);
+    },
+  },
+  {
+    name: "build_evening_plan",
+    title: "Build an evening plan",
     description:
-      "Create a reviewable proposed evening from known happening IDs and planned start times. This updates the visible timeline but does not commit the night; the human can lock, edit, accept, or reject it.",
+      "Build the active working itinerary from selected happening IDs and planned start times. The validated result immediately replaces the existing unlocked itinerary and remains directly editable through lock, unlock, add and remove actions.",
     inputSchema: {
       type: "object",
       properties: {
@@ -320,7 +334,7 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
           (stop) => typeof stop.happeningId === "string" && typeof stop.plannedStart === "string",
         )
         .map(
-          (stop): StageStopInput => ({
+          (stop): PlanHappeningInput => ({
             happeningId: stop.happeningId as string,
             plannedStart: stop.plannedStart as string,
           }),
@@ -328,14 +342,14 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
       if (stops.length !== value.stops.length || !stops.length) {
         return toolError("Every stop needs a happeningId and ISO plannedStart.");
       }
-      return actions.stagePlan(stops, typeof value.rationale === "string" ? value.rationale : undefined);
+      return actions.buildEveningPlan(stops, typeof value.rationale === "string" ? value.rationale : undefined);
     },
   },
   {
     name: "read_current_plan",
     title: "Read the shared evening plan",
     description:
-      "Read the canonical plan, current staged proposal, human locks and edits, staged changes, constraints, and disruptions. Always use this after the human changes the UI and before attempting a repair.",
+      "Read the one active shared itinerary, human locks, constraints, disruptions, current catalog counts, and per-source freshness state. Always use this after the human changes the UI and before attempting a repair.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, untrustedContentHint: false },
     execute() {
@@ -362,10 +376,32 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
     },
   },
   {
+    name: "unlock_plan_stop",
+    title: "Unlock a plan stop",
+    description: "Unlock one active itinerary stop so it can be changed by a later agent repair or direct edit.",
+    inputSchema: { type: "object", properties: { stopId: { type: "string" } }, required: ["stopId"], additionalProperties: false },
+    annotations: { readOnlyHint: false, untrustedContentHint: false },
+    execute(input) {
+      const value = objectInput(input);
+      return typeof value.stopId === "string" ? actions.unlockPlanStop(value.stopId) : toolError("stopId must be a string.");
+    },
+  },
+  {
+    name: "remove_plan_stop",
+    title: "Remove a plan stop",
+    description: "Remove one unlocked stop from the active itinerary and immediately recalculate its route, total and end time. Locked stops must be unlocked before an agent can remove them.",
+    inputSchema: { type: "object", properties: { stopId: { type: "string" } }, required: ["stopId"], additionalProperties: false },
+    annotations: { readOnlyHint: false, untrustedContentHint: false },
+    execute(input) {
+      const value = objectInput(input);
+      return typeof value.stopId === "string" ? actions.removePlanStop(value.stopId, "agent") : toolError("stopId must be a string.");
+    },
+  },
+  {
     name: "repair_plan",
     title: "Repair the current night",
     description:
-      "Stage the smallest possible repair after a disruption. Read the current plan first. Preserve locked stops and unaffected stops; do not regenerate the full itinerary. The repair remains uncommitted until accepted.",
+      "Apply the smallest possible repair after a disruption. Read the current plan first. Preserve locked stops and unaffected stops; do not regenerate the full itinerary. A valid repair updates the visible itinerary immediately.",
     inputSchema: {
       type: "object",
       properties: {
@@ -390,28 +426,6 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
         replacementHappeningIds: stringArray(value.replacementHappeningIds),
       };
       return actions.repairPlan(repair);
-    },
-  },
-  {
-    name: "accept_staged_changes",
-    title: "Accept staged plan changes",
-    description:
-      "Commit the currently staged plan only after the human explicitly approves it. This makes the staged timeline canonical and clears its review state.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: false, untrustedContentHint: false },
-    execute() {
-      return actions.acceptStagedChanges();
-    },
-  },
-  {
-    name: "reject_staged_changes",
-    title: "Reject staged plan changes",
-    description:
-      "Discard the currently staged proposal or repair without modifying the accepted canonical plan. Use when the human rejects the visible changes.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: false, untrustedContentHint: false },
-    execute() {
-      return actions.rejectStagedChanges();
     },
   },
 ];

@@ -100,14 +100,16 @@ npx wrangler secret put XAI_API_KEY
 - 60 normalized happening occurrences across Stockholm and San Francisco with source URLs and validation tests
 - real, pannable basemaps for both cities with event markers and a plan-route overlay derived from domain state
 - static WebMCP registration through the current `document.modelContext` API
-- agent-specific motion driven by real WebMCP tool lifecycle events, with ghost staging and minimal-repair visualization
+- agent-specific motion driven by real WebMCP tool lifecycle events, with direct plan arrivals and minimal repair
 - cached server-side San Francisco event and social-pulse routes feeding the canonical city state; no authentication, user profile, or analytics
 
 The UI and WebMCP callbacks receive the same `LocalBuzzActions` instance. For example, both a timeline lock click and `lock_plan_stop` call `actions.lockPlanStop(stopId)`.
 
-Phases 1 and 2 add first-class source-backed Places and mixed nights. Each city has 33 qualified snapshots spanning restaurants, bars, pubs, cocktail lounges, wine bars, music bars and clubs. Records with incomplete operating evidence remain searchable but cannot be staged as if their hours or price were known. The Events/Places surface and fifteen WebMCP tools share purpose, price, mood, neighborhood, kind and arrival-time filtering plus staged review, party-size budget, timing, lock, accept/reject, surgical event repair and review-only event/Place acquisition.
+Phases 1 and 2 add first-class source-backed Places and mixed nights. Each city has 33 qualified snapshots spanning restaurants, bars, pubs, cocktail lounges, wine bars, music bars and clubs. Records with incomplete operating evidence remain searchable but cannot be added as if their hours or price were known. The Events/Places surface and sixteen WebMCP tools share purpose, price, mood, neighborhood, kind and arrival-time filtering plus direct plan editing, party-size budget, timing, lock/unlock/removal, surgical event repair and review-only event/Place acquisition.
 
 Generate bounded Foursquare Open Source Places review candidates with `npm run places:import`; see `docs/data-sources.md`. Import output never enters the UI automatically.
+
+Measure current inventory gaps with `npm run data:coverage`. Run one explicit, cached gap search with `npm run data:discover -- --city <city> --target <generated-target-id>`, and refresh official municipal radar with `npm run data:radar -- --city <city>`. All search and permit results remain DiscoveryLeads or corroboration-required radar records; none publish canonically. See `docs/coverage.md`.
 
 ## WebMCP tools
 
@@ -115,16 +117,19 @@ Generate bounded Foursquare Open Source Places review candidates with `npm run p
 | --- | --- |
 | `search_happenings` | Searches normalized inventory and returns source-backed candidates. |
 | `show_candidates` | Emphasizes pins/cards on the human interface. |
-| `stage_evening_plan` | Places a reviewable, uncommitted plan on the timeline. |
-| `read_current_plan` | Returns canonical state, staged state, human locks, edits, and disruptions. |
+| `build_evening_plan` | Replaces the editable itinerary after full validation. |
+| `add_happening_stop` | Adds one canonical event after validation. |
+| `add_place_stop` | Adds one canonical Place and purpose after validation. |
+| `add_custom_place_stop` | Adds one visibly unverified custom Place. |
+| `read_current_plan` | Returns the current plan, human locks, and disruptions. |
 | `lock_plan_stop` | Applies the same lock used by the timeline UI. |
-| `repair_plan` | Replaces only disrupted, unlocked stops and stages the result. |
-| `accept_staged_changes` | Commits the staged plan after approval. |
-| `reject_staged_changes` | Discards staged changes without touching the accepted plan. |
+| `unlock_plan_stop` | Releases a stop for agent edits or repair. |
+| `remove_plan_stop` | Removes an unlocked stop. |
+| `repair_plan` | Directly replaces only disrupted, unlocked stops. |
 
 Tools use strict JSON schemas, structured errors, and abort-signal-owned registration. Unsupported browsers still get the complete human experience.
 
-The conversation does not happen inside Local Buzz. The user talks to their personal agent in a WebMCP-aware browser's agent panel. While this page is open, the browser discovers the tools above; the agent calls them and the resulting candidates or staged plan appear in the same map and timeline the human can edit. The empty timeline's manual-demo button is only a fallback for presentations without an agent.
+The conversation does not happen inside Local Buzz. The user talks to their personal agent in a WebMCP-aware browser's agent panel. While this page is open, the browser discovers the tools above; the agent calls them and the resulting candidates or current plan appear in the same map and timeline the human can edit.
 
 ## Map provider
 
@@ -148,7 +153,7 @@ Verified public deployment:
 
 - [https://local-buzz.alsmith.workers.dev](https://local-buzz.alsmith.workers.dev)
 - HTTP 200
-- all eight WebMCP tools discovered in the ChatGPT in-app browser
+- the earlier deployed build exposed eight WebMCP tools; the current local contract registers fifteen and requires a fresh deployment verification before that count is claimed publicly
 - `Permissions-Policy: tools=(self)` confirmed on the deployed response
 
 The repository uses Cloudflare static assets through `wrangler.jsonc`, with the existing Vite `dist` output:
@@ -192,7 +197,13 @@ For a coding agent:
 
 ## Event ingestion
 
-Run a bounded server-side refresh with `npm run events:refresh -- stockholm` or `npm run events:refresh -- san-francisco`. Visit Sweden requires no credential. Ticketmaster is optional through server-only `TICKETMASTER_API_KEY`; a missing key reports that source unavailable and preserves last-good inventory. See `.env.example` and `docs/event-ingestion.md`.
+Run a bounded server-side refresh with `npm run events:refresh -- stockholm` or `npm run events:refresh -- san-francisco`. Visit Sweden requires no credential. Ticketmaster uses server-only `TICKETMASTER_API_KEY`; Stockholm Billetto uses both server-only `BILLETTO_API_KEY` and `BILLETTO_API_SECRET`. Missing credentials report the source unavailable and preserve its last-good inventory. See `.env.example` and `docs/event-ingestion.md`.
+
+The app cold-starts from the complete checked-in Place catalog and any still-valid retained events, then makes one request to `/api/ingestion/:city`. Per-source status is visible under **Event sources** and through `read_current_plan`. Empty or failed collection never erases last-good data; expired fixtures are provenance only. With zero current events, the app opens on Places and the manual fallback stages a valid two-Place night for review.
+
+## Data acquisition and audit operations
+
+Phase 6 remains development-only and does not add browser tools or canonical-write paths. `npm run data:graph` builds a bounded identity graph from explicitly named canonical happenings. `npm run data:benchmark` compares optional PredictHQ or approved Bandsintown results without publishing them. `npm run data:audit` verifies catalog size, exclusions, provenance, discovery/canonical separation and the seven operational Place corridors. Outputs are written to the ignored `coverage/` directory. See `docs/operations.md`.
 
 ## Official references
 

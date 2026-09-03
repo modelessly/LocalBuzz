@@ -209,7 +209,7 @@ Never cut:
 - human visual intervention
 - agent reading changed state
 - lock preservation
-- staged plan
+- one directly editable canonical plan
 - disruption and repair
 - WebMCP tool implementation
 
@@ -221,6 +221,20 @@ Phase 4 can rely on `EventSourceDefinition`, `EventCandidate`, `CityEventSnapsho
 
 ## Phase 4 discovery-lead handoff — September 1
 
-The shared state now includes review-only event/Place `DiscoveryLead` records. Two static WebMCP tools submit agent-read structured facts and evidence without URL fetching; lifecycle motion targets the visible provisional review surface. Humans can accept canonically, reject, or retain an eligible Place as an unverified custom plan stop. Proposals never publish or modify a night automatically.
+The shared state now includes review-only event/Place `DiscoveryLead` records. Two static WebMCP tools submit agent-read structured facts and evidence without URL fetching; lifecycle motion targets the visible provisional review surface. Humans can accept canonically, reject, or retain an eligible Place as a custom plan stop outside the catalog. Proposals never publish or modify a night automatically.
 
 Phase 5 can rely on fifteen static tools, strict public-URL validation, duplicate/missing/provenance issue contracts, canonical validator reuse, and the three review outcomes. It can add municipal permit radar and coverage-gap discovery as lead producers, but must not write canonical inventory directly.
+
+## Phase 5 coverage/radar handoff — September 1
+
+The repository now measures a deterministic 8,400-cell city/neighborhood/category/time/price/lead-time cube, ranks narrow city-specific search targets, and exposes human plus JSON reports through `npm run data:coverage`. One explicit target can run through the existing server-only xAI architecture; at most ten results become Phase 4 `DiscoveryLead` records, with six-hour cost caching and matching last-good retention.
+
+Official DataSF closure and PermitSF adapters retain municipal facts and suggested independent-evidence queries. A municipal record cannot become an event lead without separate official/venue/ticket corroboration. Stockholm's relevant official permit source stays disabled because its OGC/WFS contract requires a key and a verified event collection was not established.
+
+Phase 6 can rely on the coverage/radar/target snapshot types, deterministic target IDs, `LocalBuzzActions.stageDiscoveryLeads`, collector submission metadata, and mandatory corroboration. It should add bounded event-graph expansion and benchmarks without converting radar or benchmark records directly into canonical inventory.
+
+## Phase 6 consolidation handoff — September 2
+
+The six-phase expansion is integrated behind the existing shared-state planning boundary. Trusted canonical happenings can seed a bounded, provenance-bearing event graph; official related-event facts become review-only leads. PredictHQ and terms-approved Bandsintown adapters produce benchmark-only snapshots with overlap and incremental-yield metrics, while Songkick remains disabled. Refresh, quota, raw-retention, attribution and licensing policy is explicit, and plan acceptance rechecks event and Place operations.
+
+The final deterministic audit passes for 33 Places per city and all seven supported three-option corridor proxies. Records lacking operational price/hours evidence are non-stageable, while other incomplete operating evidence produces specific warnings. Qualification states remain internal and are no longer rendered as tags. No Phase 6 provider credential was configured or live benchmark run performed, and no benchmark or graph record was connected to the UI.

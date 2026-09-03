@@ -8,10 +8,10 @@ afterEach(() => {
 describe("WebMCP agent activity", () => {
   it("maps tools to the surface they visibly affect", () => {
     expect(agentActivitySpecFor("show_candidates").target).toBe("map");
-    expect(agentActivitySpecFor("stage_evening_plan").target).toBe("timeline");
+    expect(agentActivitySpecFor("build_evening_plan").target).toBe("timeline");
     expect(agentActivitySpecFor("read_current_plan").target).toBe("shared");
     expect(agentActivitySpecFor("show_place_candidates").target).toBe("map");
-    expect(agentActivitySpecFor("stage_place_stop").target).toBe("timeline");
+    expect(agentActivitySpecFor("add_place_stop").target).toBe("timeline");
     expect(agentActivitySpecFor("propose_event_from_url").target).toBe("review");
     expect(agentActivitySpecFor("propose_place_from_url").target).toBe("review");
   });

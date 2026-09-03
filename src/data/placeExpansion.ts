@@ -92,6 +92,16 @@ const qualifiedOperations: Record<string, QualifiedOperations> = {
     ),
     reservationMode: "available",
   },
+  "sf-abv": {
+    price: [18, 45],
+    weeklyHours: everyDay("16:00", "02:00", true),
+    reservationMode: "walk_in",
+  },
+  "sf-benders": {
+    price: [10, 25],
+    weeklyHours: everyDay("12:00", "02:00", true),
+    reservationMode: "walk_in",
+  },
 };
 
 type ExpansionSeed = {
@@ -151,7 +161,7 @@ const expandedPlace = (seed: ExpansionSeed): Place => {
       status: "needs_review", verifiedAt: checkedAt,
       note: operations
         ? "Official operating and menu evidence captured; exceptional hours still require a date-specific check."
-        : "Qualified for evening discovery; missing operational fields remain explicit and block canonical staging.",
+        : "Qualified for evening discovery; missing operational fields remain explicit and block itinerary use.",
     },
   };
 };

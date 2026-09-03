@@ -3,8 +3,9 @@ import type { Happening } from "../domain/types";
 export type TimeSelection = "now" | "later" | "tomorrow" | "date";
 
 export type SearchWindow = {
-  startAfter: string;
-  endBefore: string;
+  startAfter?: string;
+  endBefore?: string;
+  activeAt?: string;
 };
 
 const selectionLabels: Record<Exclude<TimeSelection, "date">, string> = {
@@ -130,7 +131,7 @@ export function getSearchWindow(
     };
   }
 
-  return { startAfter: now.toISOString(), endBefore: endOfToday };
+  return { activeAt: now.toISOString() };
 }
 
 export function initialPopulatedTimeSelection(
@@ -141,14 +142,16 @@ export function initialPopulatedTimeSelection(
   const selectedDate = localDate(now, timeZone);
   const overlaps = (selection: "now" | "tomorrow") => {
     const window = getSearchWindow(selection, selectedDate, timeZone, now);
-    const startAfter = Date.parse(window.startAfter);
-    const endBefore = Date.parse(window.endBefore);
     return happenings.some((item) => {
       const start = Date.parse(item.timing.start);
       const end = item.timing.end
         ? Date.parse(item.timing.end)
         : start + (item.timing.estimatedDurationMinutes ?? 90) * 60_000;
-      return end > startAfter && start < endBefore;
+      if (window.activeAt) {
+        const activeAt = Date.parse(window.activeAt);
+        return start <= activeAt && end > activeAt && end - start <= 24 * 60 * 60_000;
+      }
+      return start >= Date.parse(window.startAfter ?? "") && start < Date.parse(window.endBefore ?? "");
     });
   };
 

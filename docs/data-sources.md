@@ -6,7 +6,9 @@ Local Buzz uses validated, city-scoped snapshots with visible source links. This
 
 The first 20-source Stockholm desk sample and its conclusions are recorded in `docs/stockholm-source-coverage-spike.md`.
 
-Current Stockholm records use Visit Stockholm and direct venue sources. San Francisco retains its source-backed prototype snapshots and refreshes its visible inventory from server-side event and social-pulse endpoints when that city is selected. The event route uses constrained web search with strict local validation and a bounded official-calendar fallback; neither path claims complete city coverage or live ticket availability.
+Current Stockholm records use Visit Stockholm and direct venue sources. San Francisco retains source-backed prototype snapshots and refreshes scheduled events through the unified server-side ingestion snapshot. Its xAI scheduled-event collector is a permitted registry source; social pulse remains isolated and is not published as confirmed event inventory. Neither path claims complete city coverage or live ticket availability.
+
+On startup, all 33 canonical Place snapshots per city are available without a network call. Numeric hours and prices are used for planning only where official-source operational evidence is present. The default Place-only fallback uses Bar Central plus Stigbergets Fot in Stockholm, and Horsefeather plus The Page in San Francisco. ABV and Bender's are additional SF officially evidenced operational alternatives. Unknown hours or prices remain visible but block canonical staging.
 
 ## Live city context
 
@@ -85,4 +87,20 @@ Do not commit a global source dump. `fixtures/place-import/*.json` is for bounde
 
 The source registry, parsers, adapters, validation/deduplication and last-good behavior are under `server/ingestion`. Operations, measured Visit Sweden coverage and source status are documented in `docs/event-ingestion.md`.
 
-Visit Sweden and Visit Stockholm remain distinct provenance labels. Ticketmaster uses `TICKETMASTER_API_KEY` only on the server. Direct venue sources require approved registry status before fetching.
+Visit Sweden and Visit Stockholm remain distinct provenance labels. Ticketmaster uses `TICKETMASTER_API_KEY` only on the server. Billetto requires both `BILLETTO_API_KEY` and `BILLETTO_API_SECRET`, sends them only through `Api-Keypair`, retains provider UTM attribution and does not reuse images. Direct venue sources require approved registry status before fetching.
+
+## Phase 5 coverage and municipal radar
+
+Coverage measurement and commands are documented in `docs/coverage.md`. Gap searches reuse the server-only xAI Responses/Web Search boundary, but are manual, one target per run, capped at ten results and cached for six hours. `XAI_API_KEY` remains server-only. A zero-result search is an honest `empty` snapshot, not evidence that city supply is empty.
+
+DataSF municipal adapters use the official `v9cz-kk5i` temporary-closure view and `tyz3-vt28` PermitSF dataset. The closure dataset is daily; PermitSF updates multiple times per day. Municipal records are discovery radar with public open-data provenance, not event listings. Permit-only evidence can never become canonical.
+
+Stockholm Trafikkontoret's official land-permit preview was investigated. The corresponding OGC/WFS access requires an issued API key, and no public machine-readable event collection with sufficient identity/date fields was verified. Its source-registry record remains disabled rather than guessing a collection or republishing the preview.
+
+## Phase 6 external benchmarks and licensing
+
+PredictHQ uses the official bearer-authenticated event-search API only when `PREDICTHQ_API_KEY` is configured. Results are benchmark-only and measure overlap and credible gaps; subscription geography can make a valid query look empty, so empty output is not treated as proof of no events.
+
+Bandsintown queries are restricted to performers already identified from trusted canonical events. Current ordinary keys are artist-scoped unless Bandsintown approves broader organizational use, so Local Buzz also requires `BANDSINTOWN_TERMS_APPROVED=true`. Unknown artists are negatively cached by the snapshot/cadence boundary rather than repeatedly queried. Songkick is not implemented without licensed access.
+
+Raw social posts are never retained. Other source payloads are cache-only for up to 24 hours for validation/debugging and are not committed. Local Buzz republishes structured facts and attribution, not provider/editorial prose. Event or Place images require explicit reuse permission; Phase 6 does not ingest them.

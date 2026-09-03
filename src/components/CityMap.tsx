@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { type GeoJSONSource, Map as MapLibreMap, Marker, NavigationControl } from "maplibre-gl";
 import type { FeatureCollection, LineString } from "geojson";
-import type { EveningPlan, Happening, Place, PlanChange, PlanStop } from "../domain/types";
+import type { EveningPlan, Happening, Place, PlanStop } from "../domain/types";
 import { eventSignalState } from "../lib/eventSignal";
 
 type CityMapProps = {
@@ -18,7 +18,6 @@ type CityMapProps = {
   selectedId?: string;
   selectedPlaceId?: string;
   plan: EveningPlan | null;
-  changes: PlanChange[];
   onSelect: (id: string) => void;
   onSelectPlace: (id: string) => void;
 };
@@ -27,9 +26,6 @@ const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const ROUTE_SOURCE_ID = "local-buzz-route";
 const ROUTE_GLOW_LAYER_ID = "local-buzz-route-glow";
 const ROUTE_LAYER_ID = "local-buzz-route-line";
-const REPAIR_SOURCE_ID = "local-buzz-repair-scar";
-const REPAIR_GLOW_LAYER_ID = "local-buzz-repair-scar-glow";
-const REPAIR_LAYER_ID = "local-buzz-repair-scar-line";
 
 export function CityMap({
   cityName,
@@ -45,7 +41,6 @@ export function CityMap({
   selectedId,
   selectedPlaceId,
   plan,
-  changes,
   onSelect,
   onSelectPlace,
 }: CityMapProps) {
@@ -119,25 +114,15 @@ export function CityMap({
     const visible = visibleIds
       .map((id) => byId.get(id))
       .filter((item): item is Happening => Boolean(item));
-    const repairScarIds = new Set(
-      changes
-        .filter((change) => change.type === "replace")
-        .map((change) => change.before?.kind === "happening" ? change.before.happeningId : undefined)
-        .filter((id): id is string => Boolean(id)),
-    );
-
     const eventMarkers = visible.map((item) => {
       const stopIndex = plan?.stops.findIndex((stop) => stop.kind === "happening" && stop.happeningId === item.id) ?? -1;
       const planned = stopIndex >= 0;
-      const stopId = planned ? plan?.stops[stopIndex]?.id : undefined;
-      const repaired = Boolean(stopId && changes.some((change) => change.type === "replace" && change.stopId === stopId));
       const unavailable = ["sold_out", "cancelled"].includes(item.status.availability);
       const signal = eventSignalState(item, nowMs);
       const markerRoot = document.createElement("div");
       markerRoot.className = [
         "local-buzz-marker",
         signal !== "quiet" ? `is-${signal}` : "",
-        repairScarIds.has(item.id) ? "is-repair-scar" : "",
       ].filter(Boolean).join(" ");
 
       const button = document.createElement("button");
@@ -147,7 +132,6 @@ export function CityMap({
         candidateIds.includes(item.id) ? "is-candidate" : "",
         selectedId === item.id ? "is-selected" : "",
         planned ? "is-planned" : "",
-        repaired ? "is-repaired" : "",
         unavailable ? "is-unavailable" : "",
       ]
         .filter(Boolean)
@@ -184,13 +168,13 @@ export function CityMap({
     });
     const customMarkers = (plan?.stops ?? []).filter((stop): stop is Extract<PlanStop, { kind: "custom_place" }> => stop.kind === "custom_place").map((stop) => {
       const markerRoot = document.createElement("div"); markerRoot.className = "local-buzz-marker is-place is-custom";
-      const button = document.createElement("button"); button.type = "button"; button.className = "map-pin is-place is-planned is-unverified";
-      button.ariaLabel = `Unverified custom place: ${stop.customPlace.name}`; button.title = `${stop.customPlace.name} · unverified custom place`;
+      const button = document.createElement("button"); button.type = "button"; button.className = "map-pin is-place is-planned is-custom";
+      button.ariaLabel = `Custom place: ${stop.customPlace.name}`; button.title = `${stop.customPlace.name} · custom place`;
       const label = document.createElement("span"); label.textContent = String((plan?.stops.indexOf(stop) ?? 0) + 1); button.append(label); markerRoot.append(button);
       return new Marker({ element: markerRoot, anchor: "center" }).setLngLat([stop.customPlace.location.lng, stop.customPlace.location.lat]).addTo(map);
     });
     markersRef.current = [...eventMarkers, ...placeMarkers, ...customMarkers];
-  }, [candidateIds, candidatePlaceIds, changes, happenings, nowMs, places, plan, selectedId, selectedPlaceId, visibleIds, visiblePlaceIds]);
+  }, [candidateIds, candidatePlaceIds, happenings, nowMs, places, plan, selectedId, selectedPlaceId, visibleIds, visiblePlaceIds]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -212,24 +196,6 @@ export function CityMap({
         ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } }]
         : [],
     };
-    const repairScar: FeatureCollection<LineString> = {
-      type: "FeatureCollection",
-      features: changes.flatMap((change) => {
-        if (change.type !== "replace" || !change.before || !change.after) return [];
-        const before = coordinatesFor(change.before);
-        const after = coordinatesFor(change.after);
-        if (!before || !after) return [];
-        return [{
-          type: "Feature" as const,
-          properties: { changeId: change.id },
-          geometry: {
-            type: "LineString" as const,
-            coordinates: [before, after],
-          },
-        }];
-      }),
-    };
-
     const syncRoute = () => {
       const existing = map.getSource(ROUTE_SOURCE_ID) as GeoJSONSource | undefined;
       if (existing) {
@@ -257,35 +223,6 @@ export function CityMap({
           },
         });
       }
-
-      const existingRepair = map.getSource(REPAIR_SOURCE_ID) as GeoJSONSource | undefined;
-      if (existingRepair) {
-        existingRepair.setData(repairScar);
-        return;
-      }
-      map.addSource(REPAIR_SOURCE_ID, { type: "geojson", data: repairScar });
-      map.addLayer({
-        id: REPAIR_GLOW_LAYER_ID,
-        type: "line",
-        source: REPAIR_SOURCE_ID,
-        paint: {
-          "line-color": "#ff526f",
-          "line-width": 10,
-          "line-blur": 5,
-          "line-opacity": 0.2,
-        },
-      });
-      map.addLayer({
-        id: REPAIR_LAYER_ID,
-        type: "line",
-        source: REPAIR_SOURCE_ID,
-        paint: {
-          "line-color": "#d195ff",
-          "line-width": 2,
-          "line-opacity": 0.78,
-          "line-dasharray": [1, 2.4],
-        },
-      });
     };
 
     if (map.isStyleLoaded()) syncRoute();
@@ -294,7 +231,7 @@ export function CityMap({
     return () => {
       map.off("load", syncRoute);
     };
-  }, [changes, happenings, places, plan]);
+  }, [happenings, places, plan]);
 
   return (
     <div className="city-map" data-map-status={mapStatus} aria-label={`Interactive map of ${cityName} events and places`}>

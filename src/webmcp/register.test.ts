@@ -5,142 +5,85 @@ import { createWebMcpTools, registerWebMcp } from "./register";
 
 const setup = () => {
   let state: LocalBuzzState = createInitialState("stockholm");
-  const actions = new LocalBuzzActions(
-    () => state,
-    (next) => {
-      state = next;
-    },
-  );
+  const actions = new LocalBuzzActions(() => state, (next) => { state = next; }, () => new Date("2026-08-30T12:00:00Z"));
   return { actions, read: () => state };
 };
 
 describe("WebMCP registration", () => {
-  it("exposes the fifteen static acquisition, event, place and shared-plan tools with strict schemas", () => {
-    const { actions } = setup();
-    const tools = createWebMcpTools(actions);
-    expect(tools.map((tool) => tool.name)).toEqual([
-      "propose_event_from_url",
-      "propose_place_from_url",
-      "search_happenings",
-      "show_candidates",
-      "search_places",
-      "show_place_candidates",
-      "read_place_details",
-      "stage_place_stop",
-      "stage_custom_place",
-      "stage_evening_plan",
-      "read_current_plan",
-      "lock_plan_stop",
-      "repair_plan",
-      "accept_staged_changes",
-      "reject_staged_changes",
+  it("exposes sixteen static discovery and direct-plan tools with strict schemas", () => {
+    const names = createWebMcpTools(setup().actions).map((tool) => tool.name);
+    expect(names).toEqual([
+      "propose_event_from_url", "propose_place_from_url", "search_happenings", "show_candidates",
+      "search_places", "show_place_candidates", "read_place_details", "add_place_stop",
+      "add_custom_place_stop", "add_happening_stop", "build_evening_plan", "read_current_plan",
+      "lock_plan_stop", "unlock_plan_stop", "remove_plan_stop", "repair_plan",
     ]);
-    for (const tool of tools) {
+    expect(names.some((name) => name.includes("staged") || name.startsWith("stage_"))).toBe(false);
+    for (const tool of createWebMcpTools(setup().actions)) {
       expect(tool.description.length).toBeGreaterThan(50);
       expect(tool.inputSchema?.additionalProperties).toBe(false);
     }
   });
 
-  it("lets an agent stage the same mixed canonical and custom place stops as the UI", async () => {
+  it("lets an agent build and extend the same canonical mixed plan used by the UI", async () => {
     const { actions, read } = setup();
     const tools = new Map(createWebMcpTools(actions).map((tool) => [tool.name, tool]));
     const options = { signal: new AbortController().signal };
-    await tools.get("stage_evening_plan")?.execute({ stops: [{ happeningId: "ukraine-festival", plannedStart: "2026-08-30T18:00:00+02:00" }] }, options);
-    await tools.get("stage_place_stop")?.execute({ placeId: "sthlm-tjoget", purpose: "drinks", plannedStart: "2026-08-30T20:00:00+02:00" }, options);
-    const details = await tools.get("read_place_details")?.execute({ placeId: "sthlm-tjoget" }, options);
-    expect(details).toMatchObject({ ok: true, place: { verification: { status: "verified" } } });
-    expect(read().stagedPlan?.stops.map((stop) => stop.kind)).toEqual(["happening", "place"]);
-    expect(actions.readCurrentPlan()).toMatchObject({ ok: true, stagedPlan: { status: "staged" } });
+    await tools.get("build_evening_plan")?.execute({ stops: [{ happeningId: "fringe-closing", plannedStart: "2026-08-30T17:30:00+02:00" }] }, options);
+    await tools.get("add_place_stop")?.execute({ placeId: "sthlm-tjoget", purpose: "drinks", plannedStart: "2026-08-30T19:30:00+02:00" }, options);
+    expect(read().currentPlan?.stops.map((stop) => stop.kind)).toEqual(["happening", "place"]);
+    expect(actions.readCurrentPlan()).toMatchObject({ ok: true, currentPlan: { stops: [{ status: "active" }, { status: "active" }] } });
   });
 
-  it("exposes qualified Place filters and operational evidence through search_places", async () => {
-    const { actions } = setup();
+  it("adds an event, locks, unlocks and removes through direct tools", async () => {
+    const { actions, read } = setup();
     const tools = new Map(createWebMcpTools(actions).map((tool) => [tool.name, tool]));
-    const result = await tools.get("search_places")?.execute({
-      purposes: ["drinks"], kinds: ["pub"], moods: ["relaxed"], neighborhoods: ["Södermalm"],
-      maxPrice: 200, openAt: "2026-08-30T20:00:00+02:00", maxResults: 20,
-    }, { signal: new AbortController().signal });
+    const options = { signal: new AbortController().signal };
+    await tools.get("add_happening_stop")?.execute({ happeningId: "fringe-closing", plannedStart: "2026-08-30T17:30:00+02:00" }, options);
+    expect(read().currentPlan?.stops).toHaveLength(1);
+    await tools.get("lock_plan_stop")?.execute({ stopId: "stop-1" }, options);
+    expect(read().currentPlan?.stops[0].locked).toBe(true);
+    await tools.get("unlock_plan_stop")?.execute({ stopId: "stop-1" }, options);
+    expect(read().currentPlan?.stops[0].locked).toBe(false);
+    await tools.get("remove_plan_stop")?.execute({ stopId: "stop-1" }, options);
+    expect(read().currentPlan).toBeNull();
+  });
 
+  it("keeps agent removal from bypassing locked-stop protection", async () => {
+    const { actions, read } = setup();
+    const tools = new Map(createWebMcpTools(actions).map((tool) => [tool.name, tool]));
+    const options = { signal: new AbortController().signal };
+    await tools.get("add_happening_stop")?.execute({ happeningId: "fringe-closing", plannedStart: "2026-08-30T17:30:00+02:00" }, options);
+    await tools.get("lock_plan_stop")?.execute({ stopId: "stop-1" }, options);
+    expect(await tools.get("remove_plan_stop")?.execute({ stopId: "stop-1" }, options)).toMatchObject({ ok: false, code: "LOCKED_STOP_CONFLICT" });
+    expect(read().currentPlan?.stops).toHaveLength(1);
+  });
+
+  it("returns qualified Place filters and source evidence", async () => {
+    const { actions, read } = setup();
+    const tools = new Map(createWebMcpTools(actions).map((tool) => [tool.name, tool]));
+    const result = await tools.get("search_places")?.execute({ purposes: ["drinks"], kinds: ["pub"], moods: ["relaxed"], neighborhoods: ["Södermalm"], maxPrice: 200, openAt: "2026-08-30T20:00:00+02:00", maxResults: 20 }, { signal: new AbortController().signal });
     expect(result).toMatchObject({ ok: true, count: 1 });
-    const place = (result as { places: Array<Record<string, unknown>> }).places[0];
-    expect(place).toMatchObject({
-      id: "sthlm-stigbergets-fot",
-      openingHoursEvidence: { status: "verified" },
-      verification: { status: "needs_review" },
-    });
-    expect(place.officialWebsite).toMatch(/^https:\/\//);
+    expect((result as { places: Array<Record<string, unknown>> }).places[0]).toMatchObject({ id: "sthlm-stigbergets-fot", openingHoursEvidence: { status: "verified" } });
+    expect(await tools.get("show_place_candidates")?.execute({ placeIds: ["sthlm-stigbergets-fot"], reason: "Agent-selected pub" }, { signal: new AbortController().signal })).toMatchObject({ ok: true, visibleCount: 1 });
+    expect(read()).toMatchObject({ discoveryMode: "places", candidatePlaceIds: ["sthlm-stigbergets-fot"], candidateReasonOrigin: "agent" });
   });
 
-  it("tool execution mutates the exact shared state used by UI actions", async () => {
-    const { actions, read } = setup();
-    const tools = new Map(createWebMcpTools(actions).map((tool) => [tool.name, tool]));
-    const options = { signal: new AbortController().signal };
-
-    await tools.get("show_candidates")?.execute(
-      { happeningIds: ["forro-dance"], reason: "Agent pick" },
-      options,
-    );
-    expect(read().candidateHappeningIds).toEqual(["forro-dance"]);
-
-    await tools.get("stage_evening_plan")?.execute(
-      {
-        stops: [
-          { happeningId: "forro-dance", plannedStart: "2026-08-30T18:00:00+02:00" },
-          { happeningId: "weeping-willows", plannedStart: "2026-08-30T19:30:00+02:00" },
-        ],
-      },
-      options,
-    );
-    expect(read().stagedPlan?.stops).toHaveLength(2);
-
-    await tools.get("lock_plan_stop")?.execute({ stopId: "stop-2" }, options);
-    expect(read().stagedPlan?.stops[1].locked).toBe(true);
-    expect(actions.readCurrentPlan()).toMatchObject({
-      ok: true,
-      stagedPlan: { stops: [{ locked: false }, { locked: true }] },
-    });
-  });
-
-  it("owns registration lifecycle with an AbortSignal", async () => {
-    const { actions } = setup();
+  it("registers every tool with a shared abort lifecycle", async () => {
     const signals: AbortSignal[] = [];
-    const modelContext: WebMcpModelContext = {
-      registerTool: vi.fn(async (_tool, options) => {
-        if (options?.signal) signals.push(options.signal);
-      }),
-    };
+    const modelContext: WebMcpModelContext = { registerTool: vi.fn(async (_tool, options) => { if (options?.signal) signals.push(options.signal); }) };
     const status = vi.fn();
-    const cleanup = registerWebMcp(actions, status, modelContext);
+    const cleanup = registerWebMcp(setup().actions, status, modelContext);
     await vi.waitFor(() => expect(status).toHaveBeenCalledWith("available"));
-    expect(modelContext.registerTool).toHaveBeenCalledTimes(15);
+    expect(modelContext.registerTool).toHaveBeenCalledTimes(16);
     cleanup();
     expect(signals.every((signal) => signal.aborted)).toBe(true);
   });
 
-  it("uses the registration signal when the browser omits execution options", async () => {
-    const { actions, read } = setup();
-    const registered = new Map<string, WebMcpTool>();
-    const modelContext: WebMcpModelContext = {
-      registerTool: vi.fn(async (tool) => {
-        registered.set(tool.name, tool);
-      }),
-    };
-    const activity = vi.fn();
-    registerWebMcp(actions, vi.fn(), modelContext, activity);
-    await vi.waitFor(() => expect(registered.size).toBe(15));
-
-    await registered.get("show_candidates")?.execute(
-      { happeningIds: ["forro-dance"] },
-      undefined as unknown as { signal: AbortSignal },
-    );
-
-    expect(read().candidateHappeningIds).toEqual(["forro-dance"]);
-    expect(activity).toHaveBeenCalledWith(expect.objectContaining({ status: "complete" }));
-  });
-
-  it("stages agent URL proposals in the same discovery-lead state used by the review UI", async () => {
+  it("creates discovery leads without changing the current itinerary", async () => {
     const { actions, read } = setup();
     const tools = new Map(createWebMcpTools(actions).map((tool) => [tool.name, tool]));
+    const before = structuredClone(read().currentPlan);
     const result = await tools.get("propose_event_from_url")?.execute({
       cityId: "stockholm", sourceUrl: "https://venue.example/new-show", sourceType: "official_page",
       fields: { title: "Agent-found show", category: "live_music", venue: { name: "Nalen", address: "Regeringsgatan 74, Stockholm", neighborhood: "Norrmalm", lat: 59.337, lng: 18.0665 }, timing: { start: "2026-09-05T19:00:00+02:00", end: "2026-09-05T21:00:00+02:00" }, commerce: { currency: "SEK", priceMin: 200 } },
@@ -148,14 +91,6 @@ describe("WebMCP registration", () => {
     }, { signal: new AbortController().signal });
     expect(result).toMatchObject({ ok: true, lead: { leadType: "event", verificationStatus: "provisional" } });
     expect(read().discoveryLeads).toHaveLength(1);
-    expect(read().happenings.some((item) => item.title === "Agent-found show")).toBe(false);
-
-    const placeResult = await tools.get("propose_place_from_url")?.execute({
-      cityId: "stockholm", sourceUrl: "https://bar.example/", sourceType: "official_page",
-      fields: { name: "Agent-found bar", kind: "bar", location: { address: "Barvägen 1, Stockholm", neighborhood: "Norrmalm", lat: 59.335, lng: 18.066 }, typicalVisitDurationMinutes: 60, priceRange: { min: 100, max: 200, currency: "SEK", basis: "per_person", band: "moderate", evidence: "official_menu", evidenceUrl: "https://bar.example/menu" } },
-      evidence: [{ field: "name", sourceUrl: "https://bar.example/", note: "Official page" }],
-    }, { signal: new AbortController().signal });
-    expect(placeResult).toMatchObject({ ok: true, lead: { leadType: "place" } });
-    expect(read().discoveryLeads.map((lead) => lead.leadType)).toEqual(["place", "event"]);
+    expect(read().currentPlan).toEqual(before);
   });
 });

@@ -1,27 +1,31 @@
 import { getCityDefinition } from "../data/cities";
+import { eventSourceDescriptorsForCity } from "../data/eventSources";
 import { localDate, localDateTimeToIso, shiftIsoDate } from "../lib/timeSearch";
 import type {
   CityId,
+  CityEventSnapshotWire,
   DiscoveryLead,
   DomainResult,
   EveningPlan,
+  EventInventoryState,
+  EventSourceState,
   Happening,
   LiveUpdate,
   LocalBuzzState,
   Place,
   PlacePurpose,
   PlaceSearchFilters,
-  PlanChange,
   PlanConstraints,
   PlanStop,
   SearchFilters,
 } from "./types";
 import { buildEventLead, buildPlaceLead, canonicalEventFromLead, canonicalPlaceFromLead, type ProposeEventLeadInput, type ProposePlaceLeadInput } from "./discovery";
 import { deduplicateHappenings } from "./happeningDedup";
+import { isNightlyHappening, occurrenceEndMs } from "./happeningTiming";
 
-export type StageStopInput = { happeningId: string; plannedStart: string };
-export type StagePlaceStopInput = { placeId: string; purpose: PlacePurpose; plannedStart: string };
-export type StageCustomPlaceInput = {
+export type PlanHappeningInput = { happeningId: string; plannedStart: string };
+export type AddPlaceStopInput = { placeId: string; purpose: PlacePurpose; plannedStart: string };
+export type AddCustomPlaceStopInput = {
   name: string;
   purpose: PlacePurpose;
   plannedStart: string;
@@ -41,13 +45,6 @@ export type RepairInput = {
 
 const unavailable = new Set(["sold_out", "cancelled"]);
 
-const occurrenceEndMs = (happening: Happening) => {
-  const startMs = Date.parse(happening.timing.start);
-  return happening.timing.end
-    ? Date.parse(happening.timing.end)
-    : startMs + (happening.timing.estimatedDurationMinutes ?? 90) * 60_000;
-};
-
 const currentHappeningIds = (happenings: Happening[], cityId: CityId, now: Date) => {
   const city = getCityDefinition(cityId);
   const cityDate = localDate(now, city.timeZone);
@@ -55,10 +52,54 @@ const currentHappeningIds = (happenings: Happening[], cityId: CityId, now: Date)
     localDateTimeToIso(shiftIsoDate(cityDate, 1), "00:00:00", city.timeZone),
   );
   return happenings
-    .filter((item) => !unavailable.has(item.status.availability))
+    .filter((item) => item.cityId === cityId && isNightlyHappening(item) && !unavailable.has(item.status.availability))
     .filter((item) => occurrenceEndMs(item) > now.getTime())
     .filter((item) => Date.parse(item.timing.start) < endOfToday)
     .map((item) => item.id);
+};
+
+const isUnexpiredHappening = (item: Happening, cityId: CityId, now: Date) =>
+  item.cityId === cityId && isNightlyHappening(item) && !unavailable.has(item.status.availability) && occurrenceEndMs(item) > now.getTime();
+
+const buildInitialEventInventory = (cityId: CityId, happenings: Happening[], now: Date): EventInventoryState => {
+  const currentCount = happenings.filter((item) => isUnexpiredHappening(item, cityId, now)).length;
+  const expiredCount = happenings.filter((item) => item.cityId === cityId && occurrenceEndMs(item) <= now.getTime()).length;
+  const attemptedAt = now.toISOString();
+  const bundled: EventSourceState = {
+    sourceId: `bundled-${cityId}-prototype-snapshot`,
+    publisher: `${getCityDefinition(cityId).name} prototype snapshot`,
+    status: "retained",
+    attemptedAt,
+    acceptedCount: 0,
+    rejectedCount: 0,
+    retainedCount: currentCount,
+    expiredCount,
+    emptySuccessful: false,
+    message: expiredCount
+      ? `${expiredCount} historical snapshot record${expiredCount === 1 ? " is" : "s are"} retained for provenance and excluded from current results.`
+      : "Checked-in, unexpired prototype records are retained while permitted sources refresh.",
+  };
+  const configured = eventSourceDescriptorsForCity(cityId).map((source): EventSourceState => ({
+    sourceId: source.sourceId,
+    publisher: source.publisher,
+    status: source.enabled ? "refreshing" : "disabled",
+    attemptedAt,
+    acceptedCount: 0,
+    rejectedCount: 0,
+    retainedCount: 0,
+    expiredCount: 0,
+    emptySuccessful: false,
+    message: source.enabled ? "Startup refresh is in progress." : source.disabledReason,
+  }));
+  return {
+    cityId,
+    refreshId: "startup-pending",
+    refreshing: configured.some((source) => source.status === "refreshing"),
+    currentCount,
+    retainedCount: currentCount,
+    expiredCount,
+    sources: [bundled, ...configured],
+  };
 };
 
 const canAttendAt = (happening: Happening, plannedStart: string) => {
@@ -76,10 +117,11 @@ const canAttendAt = (happening: Happening, plannedStart: string) => {
 
 export const createInitialState = (cityId: CityId = "san-francisco", now = new Date()): LocalBuzzState => {
   const city = getCityDefinition(cityId);
-  const visibleIds = currentHappeningIds(city.happenings, cityId, now);
+  const initialHappenings = city.happenings.filter(isNightlyHappening);
+  const visibleIds = currentHappeningIds(initialHappenings, cityId, now);
   return {
     activeCityId: cityId,
-    happenings: city.happenings.map((item) => structuredClone(item)),
+    happenings: initialHappenings.map((item) => structuredClone(item)),
     places: city.places.map((item) => structuredClone(item)),
     filters: {},
     placeFilters: {},
@@ -88,11 +130,13 @@ export const createInitialState = (cityId: CityId = "san-francisco", now = new D
     visiblePlaceIds: city.places.map((item) => item.id),
     candidatePlaceIds: [],
     currentPlan: null,
-    stagedPlan: null,
-    stagedChanges: [],
     liveUpdates: [],
+    eventInventory: buildInitialEventInventory(cityId, initialHappenings, now),
     discoveryLeads: [],
-    activityMessage: `${city.snapshotLabel} loaded for the proof-of-concept window.`,
+    discoveryMode: visibleIds.length ? "events" : "places",
+    activityMessage: visibleIds.length
+      ? `${visibleIds.length} current prototype events and ${city.places.length} canonical places are available while sources refresh.`
+      : `No current events are retained. ${city.places.length} canonical places are ready to browse while sources refresh.`,
     webMcp: "checking",
   };
 };
@@ -151,7 +195,7 @@ const validatePlaceVisit = (
   timeZone: string,
 ): DomainResult<{ plannedEnd: string }> => {
   if (place.priceRange.min === undefined || place.priceRange.max === undefined) {
-    return error("PLACE_DATA_INCOMPLETE", `${place.name} does not have a verified-enough per-person price range.`, "Review the official source or stage it as a custom unverified place with explicit assumptions.");
+    return error("PLACE_DATA_INCOMPLETE", `${place.name} does not have a usable per-person price range.`, "Check the official source or add it as a custom place with explicit assumptions.");
   }
   if (!Object.keys(place.weeklyHours).length) {
     return error("PLACE_DATA_INCOMPLETE", `${place.name} does not have a complete weekly-hours record.`);
@@ -187,17 +231,17 @@ const stopCost = (state: LocalBuzzState, stop: PlanStop, partySize: number) => {
 };
 
 const plannedEnd = (happening: Happening, start: string) => {
-  const startMs = Date.parse(start);
-  const durationMs = (happening.timing.estimatedDurationMinutes ?? 90) * 60_000;
-  const naturalEnd = startMs + durationMs;
-  const sourceEnd = occurrenceEndMs(happening);
-  return new Date(sourceEnd > startMs ? Math.min(naturalEnd, sourceEnd) : naturalEnd).toISOString();
+  if (happening.timing.end) return new Date(happening.timing.end).toISOString();
+  return new Date(Date.parse(start) + (happening.timing.estimatedDurationMinutes ?? 90) * 60_000).toISOString();
 };
+
+const unknownPriceStop = (state: LocalBuzzState, stops: PlanStop[]) => stops.find((stop) =>
+  isHappeningStop(stop) && findHappening(state, stop.happeningId)?.commerce.priceMin === undefined,
+);
 
 const summarizePlan = (
   state: LocalBuzzState,
   stops: PlanStop[],
-  status: EveningPlan["status"],
   constraints: PlanConstraints,
   rationale?: string,
 ): EveningPlan => {
@@ -210,7 +254,6 @@ const summarizePlan = (
     : undefined;
   return {
     id: planDate ? `evening-${state.activeCityId}-${planDate}` : state.currentPlan?.id ?? `evening-${state.activeCityId}`,
-    status,
     stops: ordered,
     totalEstimatedCost: ordered.reduce((sum, stop) => {
       return sum + stopCost(state, stop, constraints.partySize);
@@ -238,12 +281,50 @@ const error = <T>(
   suggestion?: string,
 ): DomainResult<T> => ({ ok: false, code, message, suggestion });
 
+export const recheckPlanOperationalReadiness = (
+  state: LocalBuzzState,
+  plan: EveningPlan,
+  now = new Date(),
+): DomainResult<{ warnings: string[] }> => {
+  const warnings: string[] = [];
+  const timeZone = getCityDefinition(state.activeCityId).timeZone;
+  for (const stop of plan.stops) {
+    if (isHappeningStop(stop)) {
+      const happening = findHappening(state, stop.happeningId);
+      if (!happening) return error("INVALID_HAPPENING_ID", `Unknown happening: ${stop.happeningId}`);
+      if (!isNightlyHappening(happening)) return error("HAPPENING_UNAVAILABLE", `${happening.title} is not an eligible single-night event.`);
+      if (unavailable.has(happening.status.availability)) return error("HAPPENING_UNAVAILABLE", `${happening.title} is ${happening.status.availability.replace("_", " ")} and cannot remain in the itinerary.`);
+      if (occurrenceEndMs(happening) <= now.getTime()) return error("HAPPENING_UNAVAILABLE", `${happening.title} has already ended and cannot remain in the itinerary.`);
+      if (happening.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${happening.title} has no confirmed minimum price, so the hard budget cannot be checked.`);
+      const verifiedAt = Date.parse(happening.source.lastVerifiedAt ?? happening.source.fetchedAt ?? "");
+      if (!Number.isFinite(verifiedAt) || now.getTime() - verifiedAt > 14 * 24 * 60 * 60_000) warnings.push(`${happening.title}'s source evidence is stale or undated.`);
+      continue;
+    }
+    if (isPlaceStop(stop)) {
+      const place = findPlace(state, stop.placeId);
+      if (!place) return error("INVALID_PLACE_ID", `Unknown place: ${stop.placeId}`);
+      const visit = validatePlaceVisit(place, stop.purpose, stop.plannedStart, timeZone);
+      if (!visit.ok) return visit;
+      if (place.reservationMode === "required") return error("RESERVATION_CONFLICT", `${place.name} requires a reservation and cannot be used for a spontaneous itinerary.`);
+      const verifiedAt = Date.parse(place.verification.verifiedAt ?? "");
+      if (place.verification.status !== "verified") warnings.push(`${place.name}'s current operating details should be checked at the source.`);
+      if (!Number.isFinite(verifiedAt) || now.getTime() - verifiedAt > 90 * 24 * 60 * 60_000) warnings.push(`${place.name}'s operating details are stale or undated.`);
+      if (place.exceptionalHours.status === "unknown") warnings.push(`Exceptional hours remain unknown for ${place.name}.`);
+      if (place.reservationMode === "recommended") warnings.push(`A reservation is recommended at ${place.name}.`);
+      continue;
+    }
+    warnings.push(`${stop.customPlace.name} is a custom Place; confirm its assumptions before relying on it.`);
+  }
+  return { ok: true, warnings: [...new Set(warnings)] };
+};
+
 type StateWriter = (next: LocalBuzzState) => void;
 
 export class LocalBuzzActions {
   constructor(
     private readonly read: () => LocalBuzzState,
     private readonly write: StateWriter,
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
   private update(recipe: (state: LocalBuzzState) => LocalBuzzState) {
@@ -252,11 +333,22 @@ export class LocalBuzzActions {
     return next;
   }
 
+  stageDiscoveryLeads(leads: DiscoveryLead[]): DomainResult<{ leads: DiscoveryLead[]; count: number }> {
+    const state = this.read();
+    if (leads.some((lead) => lead.cityId !== state.activeCityId)) return error("WRONG_CITY", "Discovery leads must match the active city before entering the review frontier.");
+    if (leads.some((lead) => lead.reviewOutcome)) return error("INVALID_INPUT", "Reviewed leads cannot be proposed as new discovery work.");
+    const existing = new Set(state.discoveryLeads.filter((lead) => !lead.reviewOutcome).map((lead) => lead.id));
+    const proposed = leads.filter((lead) => !existing.has(lead.id));
+    if (!proposed.length) return error("DUPLICATE", "Every discovery lead is already awaiting review.");
+    this.update((current) => ({ ...current, discoveryLeads: [...proposed, ...current.discoveryLeads], activityMessage: `${proposed.length} targeted discovery lead${proposed.length === 1 ? "" : "s"} proposed for human review; canonical inventory is unchanged.` }));
+    return { ok: true, leads: proposed, count: proposed.length };
+  }
+
   proposeEventLead(input: ProposeEventLeadInput): DomainResult<{ lead: DiscoveryLead }> {
     const state = this.read();
     const result = buildEventLead(input, state.activeCityId, state.happenings);
     if (!result.ok) return result;
-    if (state.discoveryLeads.some((lead) => lead.id === result.lead.id && !lead.reviewOutcome)) return error("DUPLICATE", "This source is already staged for review.");
+    if (state.discoveryLeads.some((lead) => lead.id === result.lead.id && !lead.reviewOutcome)) return error("DUPLICATE", "This source is already awaiting review.");
     this.update((current) => ({ ...current, discoveryLeads: [result.lead, ...current.discoveryLeads], activityMessage: `Agent proposed ${result.lead.fields.title ?? "an event"}. It is discovery-only until human review.` }));
     return result;
   }
@@ -265,7 +357,7 @@ export class LocalBuzzActions {
     const state = this.read();
     const result = buildPlaceLead(input, state.activeCityId, state.places);
     if (!result.ok) return result;
-    if (state.discoveryLeads.some((lead) => lead.id === result.lead.id && !lead.reviewOutcome)) return error("DUPLICATE", "This source is already staged for review.");
+    if (state.discoveryLeads.some((lead) => lead.id === result.lead.id && !lead.reviewOutcome)) return error("DUPLICATE", "This source is already awaiting review.");
     this.update((current) => ({ ...current, discoveryLeads: [result.lead, ...current.discoveryLeads], activityMessage: `Agent proposed ${result.lead.fields.name ?? "a place"}. It is discovery-only until human review.` }));
     return result;
   }
@@ -308,11 +400,11 @@ export class LocalBuzzActions {
     if (lead.leadType !== "place") return error("UNSUPPORTED_PLACE", "Only Place leads can become custom Place stops.");
     const fields = lead.fields;
     if (!fields.name || !fields.location?.address || !fields.location.neighborhood || fields.location.lat === undefined || fields.location.lng === undefined || !fields.typicalVisitDurationMinutes || fields.priceRange?.min === undefined) return error("PLACE_DATA_INCOMPLETE", "The Place lead needs name, location, duration and a per-person price before it can be retained as a custom stop.");
-    const staged = this.stageCustomPlace({ name: fields.name, purpose: input.purpose, plannedStart: input.plannedStart, location: { address: fields.location.address, neighborhood: fields.location.neighborhood, lat: fields.location.lat, lng: fields.location.lng }, typicalVisitDurationMinutes: fields.typicalVisitDurationMinutes, pricePerPerson: fields.priceRange.min, currency: fields.priceRange.currency, availableFrom: input.availableFrom, availableUntil: input.availableUntil, note: `Discovery lead from ${lead.originalSourceUrl}` }, "Human retained an insufficiently verified discovery lead as custom.");
-    if (!staged.ok) return staged;
+    const added = this.addCustomPlaceStop({ name: fields.name, purpose: input.purpose, plannedStart: input.plannedStart, location: { address: fields.location.address, neighborhood: fields.location.neighborhood, lat: fields.location.lat, lng: fields.location.lng }, typicalVisitDurationMinutes: fields.typicalVisitDurationMinutes, pricePerPerson: fields.priceRange.min, currency: fields.priceRange.currency, availableFrom: input.availableFrom, availableUntil: input.availableUntil, note: `Discovery lead from ${lead.originalSourceUrl}` }, "Human retained a discovery lead as custom.");
+    if (!added.ok) return added;
     const reviewed: DiscoveryLead = { ...lead, verificationStatus: "unverified_custom", reviewedAt: new Date().toISOString(), reviewOutcome: "kept_custom" };
-    this.update((current) => ({ ...current, discoveryLeads: current.discoveryLeads.map((item) => item.id === leadId ? reviewed : item), activityMessage: `${fields.name} is staged as an unverified custom stop, not canonical inventory.` }));
-    return { ok: true, lead: reviewed, plan: staged.plan };
+    this.update((current) => ({ ...current, discoveryLeads: current.discoveryLeads.map((item) => item.id === leadId ? reviewed : item), activityMessage: `${fields.name} was added as a custom stop outside the catalog.` }));
+    return { ok: true, lead: reviewed, plan: added.plan };
   }
 
   searchHappenings(filters: SearchFilters): DomainResult<{ happenings: Happening[]; count: number }> {
@@ -320,7 +412,9 @@ export class LocalBuzzActions {
     const query = filters.query?.trim().toLowerCase();
     const startAfter = filters.startAfter ? Date.parse(filters.startAfter) : undefined;
     const endBefore = filters.endBefore ? Date.parse(filters.endBefore) : undefined;
+    const activeAt = filters.activeAt ? Date.parse(filters.activeAt) : undefined;
     const matches = state.happenings
+      .filter(isNightlyHappening)
       .filter((item) => !unavailable.has(item.status.availability))
       .filter((item) => {
         if (!query) return true;
@@ -340,9 +434,12 @@ export class LocalBuzzActions {
           .some((token) => text.includes(token));
       })
       .filter((item) => {
-        if (startAfter === undefined) return true;
-        return Date.parse(item.timing.end ?? item.timing.start) > startAfter;
+        if (activeAt === undefined) return true;
+        const start = Date.parse(item.timing.start);
+        const end = occurrenceEndMs(item);
+        return start <= activeAt && end > activeAt;
       })
+      .filter((item) => (startAfter === undefined ? true : Date.parse(item.timing.start) >= startAfter))
       .filter((item) => (endBefore === undefined ? true : Date.parse(item.timing.start) < endBefore))
       .filter((item) =>
         filters.maxPrice === undefined
@@ -373,7 +470,7 @@ export class LocalBuzzActions {
     return { ok: true, happenings: matches, count: matches.length };
   }
 
-  showCandidates(ids: string[], reason?: string): DomainResult<{ visibleCount: number }> {
+  showCandidates(ids: string[], reason?: string, origin: "human" | "agent" = "agent"): DomainResult<{ visibleCount: number }> {
     const state = this.read();
     const invalid = ids.find((id) => !findHappening(state, id));
     if (invalid) return error("INVALID_HAPPENING_ID", `Unknown happening: ${invalid}`);
@@ -384,6 +481,8 @@ export class LocalBuzzActions {
       candidateReason: reason,
       selectedHappeningId: ids[0],
       activityMessage: `${ids.length} candidates are now visible on the shared map.`,
+      candidateReasonOrigin: reason ? origin : undefined,
+      discoveryMode: "events",
     }));
     return { ok: true, visibleCount: ids.length };
   }
@@ -397,7 +496,9 @@ export class LocalBuzzActions {
       visibleHappeningIds: ids,
       candidateHappeningIds: [],
       candidateReason: undefined,
+      candidateReasonOrigin: undefined,
       selectedHappeningId: undefined,
+      discoveryMode: "events",
       activityMessage: message ?? `${ids.length} happenings are visible.`,
     }));
     return { ok: true, visibleCount: ids.length };
@@ -436,6 +537,8 @@ export class LocalBuzzActions {
       candidatePlaceIds: ids,
       selectedPlaceId: ids[0],
       candidateReason: reason,
+      candidateReasonOrigin: reason ? "agent" : undefined,
+      discoveryMode: "places",
       activityMessage: `${ids.length} place candidates are now visible on the shared map.`,
     }));
     return { ok: true, visibleCount: ids.length };
@@ -451,6 +554,8 @@ export class LocalBuzzActions {
       candidatePlaceIds: [],
       selectedPlaceId: undefined,
       candidateReason: undefined,
+      candidateReasonOrigin: undefined,
+      discoveryMode: "places",
       activityMessage: message ?? `${ids.length} places are visible.`,
     }));
     return { ok: true, visibleCount: ids.length };
@@ -461,9 +566,9 @@ export class LocalBuzzActions {
     return placeItem ? { ok: true, place: placeItem } : error("INVALID_PLACE_ID", `Unknown place: ${placeId}`);
   }
 
-  private stageAdditionalStop(stop: PlanStop, reason?: string, warnings: string[] = []): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
+  private addAdditionalStop(stop: PlanStop, reason?: string, warnings: string[] = []): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
     const state = this.read();
-    const base = state.stagedPlan ?? state.currentPlan;
+    const base = state.currentPlan;
     const city = getCityDefinition(state.activeCityId);
     const date = localDate(new Date(stop.plannedStart), city.timeZone);
     const constraints = base?.constraints ?? {
@@ -472,27 +577,29 @@ export class LocalBuzzActions {
     };
     const stops = [...(base?.stops ?? []), stop];
     if (hasTimeConflict(stops)) return error("TIME_CONFLICT", "The place stop overlaps another stop.");
-    const plan = summarizePlan(state, stops, "staged", constraints, reason ?? base?.rationale);
+    const unknown = unknownPriceStop(state, stops);
+    if (unknown && isHappeningStop(unknown)) return error("BUDGET_CONFLICT", `${findHappening(state, unknown.happeningId)?.title ?? unknown.happeningId} has no confirmed minimum price, so the hard budget cannot be checked.`);
+    const plan = summarizePlan(state, stops, constraints, reason ?? base?.rationale);
     if (Date.parse(plan.endTime) > Date.parse(constraints.latestEndTime)) return error("TIME_CONFLICT", "The place visit ends after the night's latest-end constraint.");
     if (plan.totalEstimatedCost > constraints.budget) return error("BUDGET_CONFLICT", `Estimated total is ${plan.totalEstimatedCost} ${constraints.currency}, above the ${constraints.budget} ${constraints.currency} budget.`);
-    const change: PlanChange = { id: `change-add-${stop.id}`, type: "add", after: stop, reason, status: "staged" };
+    const readiness = recheckPlanOperationalReadiness(state, plan, this.now());
+    if (!readiness.ok) return readiness;
     this.update((current) => ({
       ...current,
-      stagedPlan: plan,
-      stagedChanges: [...current.stagedChanges, change],
+      currentPlan: plan,
       visiblePlaceIds: stop.kind === "place" ? Array.from(new Set([...current.visiblePlaceIds, stop.placeId])) : current.visiblePlaceIds,
-      activityMessage: `A ${plan.stops.length}-stop mixed night is staged for review—not committed.`,
+      activityMessage: `${plan.stops.length}-stop night updated.`,
     }));
-    return { ok: true, plan, warnings };
+    return { ok: true, plan, warnings: [...new Set([...warnings, ...readiness.warnings])] };
   }
 
-  stagePlaceStop(input: StagePlaceStopInput, reason?: string): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
+  addPlaceStop(input: AddPlaceStopInput, reason?: string): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
     const state = this.read();
     const placeItem = findPlace(state, input.placeId);
     if (!placeItem) return error("INVALID_PLACE_ID", `Unknown place: ${input.placeId}`);
     if (!placeItem.bestFor.includes(input.purpose)) return error("INVALID_INPUT", `${placeItem.name} is not catalogued for ${input.purpose.replace("_", " ")}.`);
     if (placeItem.reservationMode === "required") return error("RESERVATION_CONFLICT", `${placeItem.name} requires a reservation, which conflicts with this spontaneous plan.`);
-    const base = state.stagedPlan ?? state.currentPlan;
+    const base = state.currentPlan;
     const constraints = base?.constraints ?? getCityDefinition(state.activeCityId).constraints;
     if (placeItem.priceRange.currency !== constraints.currency) return error("CURRENCY_CONFLICT", `${placeItem.name}'s price currency does not match this night.`);
     const visit = validatePlaceVisit(placeItem, input.purpose, input.plannedStart, getCityDefinition(state.activeCityId).timeZone);
@@ -501,36 +608,39 @@ export class LocalBuzzActions {
       id: `stop-${Math.max(0, ...(base?.stops.map((item) => Number(item.id.match(/\d+$/)?.[0] ?? 0)) ?? [])) + 1}`,
       kind: "place", placeId: input.placeId, purpose: input.purpose,
       plannedStart: input.plannedStart, plannedEnd: visit.plannedEnd,
-      locked: false, status: "proposed",
+      locked: false, status: "active",
     };
     const verifiedAt = placeItem.verification.verifiedAt ? Date.parse(placeItem.verification.verifiedAt) : Number.NaN;
     const warnings = [
-      ...(placeItem.verification.status !== "verified" ? [`${placeItem.name} is marked ${placeItem.verification.status.replace("_", " ")}; review its official source before relying on it.`] : []),
-      ...(Number.isFinite(verifiedAt) && Date.now() - verifiedAt > 90 * 24 * 60 * 60_000 ? [`${placeItem.name}'s verification is older than 90 days.`] : []),
+      ...(placeItem.verification.status !== "verified" ? [`Check ${placeItem.name}'s current operating details at its source.`] : []),
+      ...(Number.isFinite(verifiedAt) && Date.now() - verifiedAt > 90 * 24 * 60 * 60_000 ? [`${placeItem.name}'s operating details are older than 90 days.`] : []),
       ...(placeItem.exceptionalHours.status === "unknown" ? [`Exceptional hours are unknown for ${placeItem.name}.`] : []),
       ...(placeItem.reservationMode === "recommended" ? [`A reservation is recommended at ${placeItem.name}.`] : []),
     ];
-    return this.stageAdditionalStop(stop, reason, warnings);
+    return this.addAdditionalStop(stop, reason, warnings);
   }
 
-  stageHappeningStop(input: StageStopInput, reason?: string): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
+  addHappeningStop(input: PlanHappeningInput, reason?: string): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
     const state = this.read();
     const happening = findHappening(state, input.happeningId);
     if (!happening) return error("INVALID_HAPPENING_ID", `Unknown happening: ${input.happeningId}`);
+    if (!isNightlyHappening(happening)) return error("HAPPENING_UNAVAILABLE", `${happening.title} is not an eligible single-night event.`);
     if (unavailable.has(happening.status.availability)) return error("HAPPENING_UNAVAILABLE", `${happening.title} is unavailable.`);
+    if (occurrenceEndMs(happening) <= this.now().getTime()) return error("HAPPENING_UNAVAILABLE", `${happening.title} has already ended.`);
+    if (happening.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${happening.title} has no confirmed minimum price, so the hard budget cannot be checked.`);
     if (!canAttendAt(happening, input.plannedStart)) return error("TIME_CONFLICT", `${happening.title} is not happening at the proposed start time.`);
-    const base = state.stagedPlan ?? state.currentPlan;
+    const base = state.currentPlan;
     const stop: PlanStop = {
       id: `stop-${Math.max(0, ...(base?.stops.map((item) => Number(item.id.match(/\d+$/)?.[0] ?? 0)) ?? [])) + 1}`,
       kind: "happening", happeningId: input.happeningId, plannedStart: input.plannedStart,
-      plannedEnd: plannedEnd(happening, input.plannedStart), locked: false, status: "proposed",
+      plannedEnd: plannedEnd(happening, input.plannedStart), locked: false, status: "active",
     };
-    return this.stageAdditionalStop(stop, reason);
+    return this.addAdditionalStop(stop, reason);
   }
 
-  stageCustomPlace(input: StageCustomPlaceInput, reason?: string): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
+  addCustomPlaceStop(input: AddCustomPlaceStopInput, reason?: string): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
     const state = this.read();
-    const base = state.stagedPlan ?? state.currentPlan;
+    const base = state.currentPlan;
     if (!input.name.trim() || input.typicalVisitDurationMinutes <= 0 || input.pricePerPerson < 0) return error("INVALID_INPUT", "Custom places need a name, positive duration and non-negative per-person price.");
     if (input.currency !== (base?.constraints.currency ?? getCityDefinition(state.activeCityId).currency)) return error("CURRENCY_CONFLICT", "Custom place currency must match the active night.");
     const start = Date.parse(input.plannedStart);
@@ -547,9 +657,9 @@ export class LocalBuzzActions {
         pricePerPerson: input.pricePerPerson, currency: input.currency, availableFrom: input.availableFrom,
         availableUntil: input.availableUntil, note: input.note, verification: { status: "unverified" },
       },
-      plannedStart: input.plannedStart, plannedEnd: new Date(end).toISOString(), locked: false, status: "proposed",
+      plannedStart: input.plannedStart, plannedEnd: new Date(end).toISOString(), locked: false, status: "active",
     };
-    return this.stageAdditionalStop(stop, reason, ["Custom place assumptions are unverified and must be reviewed before acceptance."]);
+    return this.addAdditionalStop(stop, reason, ["Confirm the custom place assumptions before relying on this stop."]);
   }
 
   replaceCityHappenings(
@@ -563,9 +673,12 @@ export class LocalBuzzActions {
     if (happenings.some((item) => item.cityId !== cityId)) {
       return error("INVALID_INPUT", "Fresh happenings must belong to the active city.");
     }
-    const incomingIds = new Set(happenings.map((item) => item.id));
-    const retainedSnapshots = state.happenings.filter((item) => !incomingIds.has(item.id));
-    const merged = [...happenings, ...retainedSnapshots];
+    const eligible = happenings.filter(isNightlyHappening);
+    const incomingIds = new Set(eligible.map((item) => item.id));
+    const retainedSnapshots = state.happenings.filter((item) => !incomingIds.has(item.id) && isNightlyHappening(item));
+    const merged = [...eligible, ...retainedSnapshots];
+    const currentCount = merged.filter((item) => isUnexpiredHappening(item, cityId, now)).length;
+    const expiredCount = merged.filter((item) => item.cityId === cityId && occurrenceEndMs(item) <= now.getTime()).length;
     this.update((current) => ({
       ...current,
       happenings: merged,
@@ -575,17 +688,159 @@ export class LocalBuzzActions {
       candidateReason: undefined,
       selectedHappeningId: undefined,
       activityMessage: message,
+      eventInventory: {
+        ...current.eventInventory,
+        currentCount,
+        expiredCount,
+        retainedCount: retainedSnapshots.filter((item) => isUnexpiredHappening(item, cityId, now)).length,
+      },
     }));
     return { ok: true, applied: true, count: merged.length };
   }
 
-  stagePlan(
-    stopInputs: StageStopInput[],
+  beginCityRefresh(cityId: CityId, refreshId: string, attemptedAt = this.now().toISOString()): DomainResult<{ refreshId: string }> {
+    const state = this.read();
+    if (state.activeCityId !== cityId) return error("WRONG_CITY", "The refresh city is no longer active.");
+    const known = new Map(state.eventInventory.sources.map((source) => [source.sourceId, source]));
+    const configured = eventSourceDescriptorsForCity(cityId).map((descriptor): EventSourceState => {
+      const previous = known.get(descriptor.sourceId);
+      return {
+        sourceId: descriptor.sourceId,
+        publisher: descriptor.publisher,
+        status: descriptor.enabled ? "refreshing" : "disabled",
+        attemptedAt,
+        lastSuccessfulRefresh: previous?.lastSuccessfulRefresh,
+        acceptedCount: 0,
+        rejectedCount: previous?.rejectedCount ?? 0,
+        retainedCount: (previous?.acceptedCount ?? 0) + (previous?.retainedCount ?? 0),
+        expiredCount: previous?.expiredCount ?? 0,
+        emptySuccessful: false,
+        message: descriptor.enabled
+          ? "Refresh in progress; any still-valid prior records remain available."
+          : descriptor.disabledReason,
+      };
+    });
+    const bundled = state.eventInventory.sources.filter((source) => source.sourceId.startsWith("bundled-"));
+    this.update((current) => ({
+      ...current,
+      eventInventory: {
+        ...current.eventInventory,
+        cityId,
+        refreshId,
+        refreshing: configured.some((source) => source.status === "refreshing"),
+        sources: [...bundled, ...configured],
+      },
+      activityMessage: `Refreshing permitted ${getCityDefinition(cityId).name} event sources. Canonical Places remain available.`,
+    }));
+    return { ok: true, refreshId };
+  }
+
+  applyCityEventSnapshot(
+    snapshot: CityEventSnapshotWire,
+    refreshId: string,
+    now = this.now(),
+  ): DomainResult<{ applied: boolean; currentCount: number; placeCount: number }> {
+    const state = this.read();
+    if (state.activeCityId !== snapshot.cityId || state.eventInventory.refreshId !== refreshId) {
+      return { ok: true, applied: false, currentCount: state.eventInventory.currentCount, placeCount: state.places.length };
+    }
+    if (!Number.isFinite(Date.parse(snapshot.generatedAt)) || snapshot.happenings.some((item) => item.cityId !== snapshot.cityId)) {
+      return this.failCityRefresh(snapshot.cityId, refreshId, "The collector returned an invalid city snapshot.", "invalid", now);
+    }
+    const incoming = deduplicateHappenings(snapshot.happenings.filter(isNightlyHappening));
+    const incomingIds = new Set(incoming.map((item) => item.id));
+    const retainedHistorical = state.happenings.filter((item) => !incomingIds.has(item.id) && isNightlyHappening(item));
+    const merged = deduplicateHappenings([...incoming, ...retainedHistorical]);
+    const current = merged.filter((item) => isUnexpiredHappening(item, snapshot.cityId, now));
+    const retainedCount = current.filter((item) => !incomingIds.has(item.id)).length;
+    const expiredCount = merged.filter((item) => item.cityId === snapshot.cityId && occurrenceEndMs(item) <= now.getTime()).length;
+    const bundled = state.eventInventory.sources.filter((source) => source.sourceId.startsWith("bundled-"));
+    const sources: EventSourceState[] = snapshot.sources.map((source) => {
+      const sourceEvents = incoming.filter((item) => item.source.name === source.publisher);
+      const sourceExpired = source.expiredCount ?? sourceEvents.filter((item) => occurrenceEndMs(item) <= now.getTime()).length;
+      const emptySuccessful = source.emptySuccessful ?? (source.status === "fresh" && source.eventCount === 0 && source.rejectedCount === 0);
+      const retained = source.retainedCount ?? (source.status === "retained" || snapshot.retained ? source.eventCount : 0);
+      return {
+        sourceId: source.sourceId,
+        publisher: source.publisher,
+        status: source.status,
+        attemptedAt: source.attemptedAt,
+        lastSuccessfulRefresh: source.lastSuccessfulRefresh,
+        acceptedCount: source.status === "fresh" ? source.eventCount : 0,
+        rejectedCount: source.rejectedCount,
+        retainedCount: retained,
+        expiredCount: sourceExpired,
+        emptySuccessful,
+        candidateCount: source.candidateCount,
+        marginalUniqueCount: source.marginalUniqueCount,
+        uniqueVenueCount: source.uniqueVenueCount,
+        todayCount: source.todayCount,
+        tonightCount: source.tonightCount,
+        next24HoursCount: source.next24HoursCount,
+        rejectionReasons: source.rejectionReasons,
+        message: source.message ?? (emptySuccessful ? "Source responded successfully but returned no publishable events." : undefined),
+      };
+    });
+    const visibleHappeningIds = state.candidateHappeningIds.length
+      ? state.visibleHappeningIds.filter((id) => merged.some((item) => item.id === id))
+      : currentHappeningIds(merged, snapshot.cityId, now);
+    const message = current.length
+      ? `${current.length} current event${current.length === 1 ? "" : "s"} · ${state.places.length} places. Event source refresh complete.`
+      : `0 current events · ${state.places.length} places. Event source refresh complete; no expired record is shown as current.`;
+    this.update((currentState) => ({
+      ...currentState,
+      happenings: merged,
+      visibleHappeningIds,
+      discoveryMode: current.length || currentState.candidateHappeningIds.length ? currentState.discoveryMode : "places",
+      activityMessage: message,
+      eventInventory: {
+        cityId: snapshot.cityId,
+        refreshId,
+        generatedAt: snapshot.generatedAt,
+        refreshing: false,
+        currentCount: current.length,
+        retainedCount,
+        expiredCount,
+        sources: [...bundled, ...sources],
+      },
+    }));
+    return { ok: true, applied: true, currentCount: current.length, placeCount: state.places.length };
+  }
+
+  failCityRefresh(
+    cityId: CityId,
+    refreshId: string,
+    safeMessage: string,
+    status: "unavailable" | "invalid" = "unavailable",
+    now = this.now(),
+  ): DomainResult<{ applied: boolean; currentCount: number; placeCount: number }> {
+    const state = this.read();
+    if (state.activeCityId !== cityId || state.eventInventory.refreshId !== refreshId) {
+      return { ok: true, applied: false, currentCount: state.eventInventory.currentCount, placeCount: state.places.length };
+    }
+    const currentCount = state.happenings.filter((item) => isUnexpiredHappening(item, cityId, now)).length;
+    const sources = state.eventInventory.sources.map((source): EventSourceState => source.status === "refreshing"
+      ? { ...source, status, attemptedAt: now.toISOString(), message: safeMessage }
+      : source);
+    this.update((current) => ({
+      ...current,
+      discoveryMode: currentCount ? current.discoveryMode : "places",
+      activityMessage: `${currentCount} current events · ${current.places.length} places. Refresh unavailable; valid retained inventory was preserved.`,
+      eventInventory: { ...current.eventInventory, refreshing: false, currentCount, sources },
+    }));
+    return { ok: true, applied: true, currentCount, placeCount: state.places.length };
+  }
+
+  buildEveningPlan(
+    stopInputs: PlanHappeningInput[],
     rationale?: string,
     constraints?: PlanConstraints,
   ): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
     if (stopInputs.length === 0) return error("INVALID_INPUT", "A plan needs at least one stop.");
     const state = this.read();
+    if (state.currentPlan?.stops.some((stop) => stop.locked)) {
+      return error("LOCKED_STOP_CONFLICT", "Unlock the current itinerary before replacing it with a new build.");
+    }
     const invalidStart = stopInputs.find((input) => !Number.isFinite(Date.parse(input.plannedStart)));
     if (invalidStart) return error("INVALID_INPUT", `Invalid planned start: ${invalidStart.plannedStart}`);
     const city = getCityDefinition(state.activeCityId);
@@ -602,13 +857,19 @@ export class LocalBuzzActions {
     if (!Number.isFinite(Date.parse(planConstraints.latestEndTime))) {
       return error("INVALID_INPUT", "The latest end time must be a valid ISO date-time.");
     }
+    if (planConstraints.currency !== city.currency || !Number.isInteger(planConstraints.partySize) || planConstraints.partySize < 1 || planConstraints.budget < 0) {
+      return error("INVALID_INPUT", "Plan constraints must use the active city's currency, a positive party size and a non-negative budget.");
+    }
     const stops: PlanStop[] = [];
     for (const [index, input] of stopInputs.entries()) {
       const happening = findHappening(state, input.happeningId);
       if (!happening) return error("INVALID_HAPPENING_ID", `Unknown happening: ${input.happeningId}`);
+      if (!isNightlyHappening(happening)) return error("HAPPENING_UNAVAILABLE", `${happening.title} is not an eligible single-night event.`);
       if (unavailable.has(happening.status.availability)) {
         return error("HAPPENING_UNAVAILABLE", `${happening.title} is unavailable.`);
       }
+      if (occurrenceEndMs(happening) <= this.now().getTime()) return error("HAPPENING_UNAVAILABLE", `${happening.title} has already ended.`);
+      if (happening.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${happening.title} has no confirmed minimum price, so the hard budget cannot be checked.`);
       if (!canAttendAt(happening, input.plannedStart)) {
         return error(
           "TIME_CONFLICT",
@@ -623,13 +884,15 @@ export class LocalBuzzActions {
         plannedStart: input.plannedStart,
         plannedEnd: plannedEnd(happening, input.plannedStart),
         locked: false,
-        status: "proposed",
+        status: "active",
       });
     }
     if (hasTimeConflict(stops)) {
       return error("TIME_CONFLICT", "At least two proposed stops overlap.", "Adjust planned start times.");
     }
-    const plan = summarizePlan(state, stops, "staged", planConstraints, rationale);
+    const unknown = unknownPriceStop(state, stops);
+    if (unknown && isHappeningStop(unknown)) return error("BUDGET_CONFLICT", `${findHappening(state, unknown.happeningId)?.title ?? unknown.happeningId} has no confirmed minimum price, so the hard budget cannot be checked.`);
+    const plan = summarizePlan(state, stops, planConstraints, rationale);
     if (Date.parse(plan.endTime) > Date.parse(planConstraints.latestEndTime)) {
       return error(
         "TIME_CONFLICT",
@@ -643,28 +906,29 @@ export class LocalBuzzActions {
         `Estimated total is ${plan.totalEstimatedCost} ${planConstraints.currency}, above the ${planConstraints.budget} ${planConstraints.currency} budget.`,
       );
     }
-    const changes: PlanChange[] = stops.map((stop, index) => ({
-      id: `change-add-${index + 1}`,
-      type: "add",
-      after: stop,
-      status: "staged",
-      reason: rationale,
-    }));
+    const readiness = recheckPlanOperationalReadiness(state, plan, this.now());
+    if (!readiness.ok) return readiness;
     this.update((current) => ({
       ...current,
-      stagedPlan: plan,
-      stagedChanges: changes,
+      currentPlan: plan,
       visibleHappeningIds: Array.from(new Set([...current.visibleHappeningIds, ...stops.filter(isHappeningStop).map((s) => s.happeningId)])),
-      activityMessage: `A ${stops.length}-stop night is staged for review—not committed.`,
+      activityMessage: `${stops.length}-stop night built and ready to edit.`,
     }));
-    return { ok: true, plan, warnings: [] };
+    return { ok: true, plan, warnings: readiness.warnings };
   }
 
   readCurrentPlan(): DomainResult<{
     city: { id: CityId; name: string; currency: string; timeZone: string };
+    inventory: {
+      currentEventCount: number;
+      placeCount: number;
+      visibleEventCount: number;
+      visiblePlaceCount: number;
+      eventSources: EventSourceState[];
+      refreshing: boolean;
+      generatedAt?: string;
+    };
     currentPlan: EveningPlan | null;
-    stagedPlan: EveningPlan | null;
-    stagedChanges: PlanChange[];
     liveUpdates: LiveUpdate[];
   }> {
     const state = this.read();
@@ -672,11 +936,32 @@ export class LocalBuzzActions {
     return {
       ok: true,
       city: { id: city.id, name: city.name, currency: city.currency, timeZone: city.timeZone },
+      inventory: {
+        currentEventCount: state.eventInventory.currentCount,
+        placeCount: state.places.length,
+        visibleEventCount: state.visibleHappeningIds.length,
+        visiblePlaceCount: state.visiblePlaceIds.length,
+        eventSources: state.eventInventory.sources,
+        refreshing: state.eventInventory.refreshing,
+        generatedAt: state.eventInventory.generatedAt,
+      },
       currentPlan: state.currentPlan,
-      stagedPlan: state.stagedPlan,
-      stagedChanges: state.stagedChanges,
       liveUpdates: state.liveUpdates,
     };
+  }
+
+  readInventoryStatus(): DomainResult<{
+    currentEventCount: number;
+    placeCount: number;
+    visibleEventCount: number;
+    visiblePlaceCount: number;
+    eventSources: EventSourceState[];
+    refreshing: boolean;
+    generatedAt?: string;
+  }> {
+    const result = this.readCurrentPlan();
+    if (!result.ok) return result;
+    return { ok: true, ...result.inventory };
   }
 
   lockPlanStop(stopId: string): DomainResult<{ stopId: string; locked: true }> {
@@ -689,22 +974,15 @@ export class LocalBuzzActions {
 
   private setStopLock(stopId: string, locked: boolean): DomainResult<{ stopId: string; locked: boolean }> {
     const state = this.read();
-    const sourcePlan = state.stagedPlan ?? state.currentPlan;
-    if (!sourcePlan) return error("PLAN_NOT_FOUND", "There is no active or staged plan.");
+    const sourcePlan = state.currentPlan;
+    if (!sourcePlan) return error("PLAN_NOT_FOUND", "There is no active plan.");
     if (!sourcePlan.stops.some((stop) => stop.id === stopId)) {
       return error("INVALID_STOP_ID", `Unknown plan stop: ${stopId}`);
     }
-    const apply = (plan: EveningPlan | null) =>
-      plan
-        ? {
-            ...plan,
-            stops: plan.stops.map((stop) => (stop.id === stopId ? { ...stop, locked } : stop)),
-          }
-        : null;
+    const plan = { ...sourcePlan, stops: sourcePlan.stops.map((stop) => (stop.id === stopId ? { ...stop, locked } : stop)) };
     this.update((current) => ({
       ...current,
-      currentPlan: apply(current.currentPlan),
-      stagedPlan: apply(current.stagedPlan),
+      currentPlan: plan,
       activityMessage: locked
         ? "Human decision recorded: this stop must survive repair."
         : "Stop unlocked and available for repair.",
@@ -712,28 +990,27 @@ export class LocalBuzzActions {
     return { ok: true, stopId, locked };
   }
 
-  removePlanStop(stopId: string): DomainResult<{ stopId: string }> {
+  removePlanStop(stopId: string, actor: "human" | "agent" = "agent"): DomainResult<{ stopId: string; plan: EveningPlan | null }> {
     const state = this.read();
-    const sourcePlan = state.stagedPlan ?? state.currentPlan;
-    if (!sourcePlan) return error("PLAN_NOT_FOUND", "There is no active or staged plan.");
+    const sourcePlan = state.currentPlan;
+    if (!sourcePlan) return error("PLAN_NOT_FOUND", "There is no active plan.");
     const target = sourcePlan.stops.find((stop) => stop.id === stopId);
     if (!target) return error("INVALID_STOP_ID", `Unknown plan stop: ${stopId}`);
-    if (target.locked) return error("LOCKED_STOP_CONFLICT", "Unlock the stop before removing it.");
+    if (target.locked && actor !== "human") return error("LOCKED_STOP_CONFLICT", "The stop is locked and cannot be removed by the agent.");
     const stops = sourcePlan.stops.filter((stop) => stop.id !== stopId);
-    const plan = summarizePlan(state, stops, sourcePlan.status, sourcePlan.constraints, sourcePlan.rationale);
+    const plan = stops.length ? summarizePlan(state, stops, sourcePlan.constraints, sourcePlan.rationale) : null;
     this.update((current) => ({
       ...current,
-      stagedPlan: current.stagedPlan ? plan : null,
-      currentPlan: current.stagedPlan ? current.currentPlan : { ...plan, status: "accepted" },
-      activityMessage: "Human edit applied directly to the shared plan.",
+      currentPlan: plan,
+      activityMessage: "Stop removed from the shared itinerary.",
     }));
-    return { ok: true, stopId };
+    return { ok: true, stopId, plan };
   }
 
   replacePlanStop(stopId: string, replacementHappeningId: string): DomainResult<{ stop: PlanStop }> {
     const state = this.read();
-    const sourcePlan = state.stagedPlan ?? state.currentPlan;
-    if (!sourcePlan) return error("PLAN_NOT_FOUND", "There is no active or staged plan.");
+    const sourcePlan = state.currentPlan;
+    if (!sourcePlan) return error("PLAN_NOT_FOUND", "There is no active plan.");
     const target = sourcePlan.stops.find((stop) => stop.id === stopId);
     if (!target) return error("INVALID_STOP_ID", `Unknown plan stop: ${stopId}`);
     if (!isHappeningStop(target)) return error("INVALID_INPUT", "Event replacement can only target a happening stop.");
@@ -743,9 +1020,9 @@ export class LocalBuzzActions {
     if (unavailable.has(replacement.status.availability)) {
       return error("HAPPENING_UNAVAILABLE", `${replacement.title} is unavailable.`);
     }
-    const start = new Date(
-      Math.max(Date.parse(target.plannedStart), Date.parse(replacement.timing.start)),
-    ).toISOString();
+    if (occurrenceEndMs(replacement) <= this.now().getTime()) return error("HAPPENING_UNAVAILABLE", `${replacement.title} has already ended.`);
+    if (replacement.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${replacement.title} has no confirmed minimum price, so the hard budget cannot be checked.`);
+    const start = replacement.timing.start;
     if (!canAttendAt(replacement, start)) {
       return error(
         "TIME_CONFLICT",
@@ -758,11 +1035,11 @@ export class LocalBuzzActions {
       happeningId: replacementHappeningId,
       plannedStart: start,
       plannedEnd: plannedEnd(replacement, start),
-      status: sourcePlan.status === "staged" ? "proposed" : "accepted",
+      status: "active",
     };
     const stops = sourcePlan.stops.map((item) => (item.id === stopId ? stop : item));
     if (hasTimeConflict(stops)) return error("TIME_CONFLICT", "The replacement overlaps another stop.");
-    const plan = summarizePlan(state, stops, sourcePlan.status, sourcePlan.constraints, sourcePlan.rationale);
+    const plan = summarizePlan(state, stops, sourcePlan.constraints, sourcePlan.rationale);
     if (Date.parse(plan.endTime) > Date.parse(plan.constraints.latestEndTime)) {
       return error("TIME_CONFLICT", "The replacement would end after the night’s latest-end constraint.");
     }
@@ -771,8 +1048,7 @@ export class LocalBuzzActions {
     }
     this.update((current) => ({
       ...current,
-      stagedPlan: current.stagedPlan ? plan : null,
-      currentPlan: current.stagedPlan ? current.currentPlan : { ...plan, status: "accepted" },
+      currentPlan: plan,
       visibleHappeningIds: Array.from(new Set([...current.visibleHappeningIds, replacementHappeningId])),
       activityMessage: "Human replacement applied; the agent can now read this changed state.",
     }));
@@ -786,7 +1062,7 @@ export class LocalBuzzActions {
     warnings: string[];
   }> {
     const state = this.read();
-    const base = state.stagedPlan ?? state.currentPlan;
+    const base = state.currentPlan;
     if (!base) return error("PLAN_NOT_FOUND", "There is no plan to repair.");
     const broken = base.stops.filter((stop): stop is Extract<PlanStop, { kind: "happening" }> => {
       if (!isHappeningStop(stop)) return false;
@@ -810,18 +1086,28 @@ export class LocalBuzzActions {
     const replacements = candidateIds
       .map((id) => findHappening(state, id))
       .filter((item): item is Happening => Boolean(item))
+      .filter(isNightlyHappening)
       .filter((item) => !unavailable.has(item.status.availability))
+      .filter((item) => occurrenceEndMs(item) > this.now().getTime())
       .filter((item) => !base.stops.some((stop) => isHappeningStop(stop) && stop.happeningId === item.id));
+    const knownPriceReplacements = replacements.filter((item) => item.commerce.priceMin !== undefined);
+    if (replacements.length > 0 && knownPriceReplacements.length === 0) {
+      return error("BUDGET_CONFLICT", "Every supplied replacement has an unknown price, so the hard budget cannot be confirmed.");
+    }
 
     const repairedStops = [...base.stops];
-    const changes: PlanChange[] = [];
+    const changedStopIds: string[] = [];
+    const city = getCityDefinition(state.activeCityId);
     for (const target of broken) {
       const targetIndex = repairedStops.findIndex((stop) => stop.id === target.id);
       const previous = targetIndex > 0 ? repairedStops[targetIndex - 1] : undefined;
       const next = targetIndex < repairedStops.length - 1 ? repairedStops[targetIndex + 1] : undefined;
-      const replacement = replacements.find((candidate) => {
-        const start = Math.max(Date.parse(target.plannedStart), Date.parse(candidate.timing.start));
-        const plannedStart = new Date(start).toISOString();
+      const replacement = knownPriceReplacements.find((candidate) => {
+        if (localDate(new Date(candidate.timing.start), city.timeZone) !== localDate(new Date(target.plannedStart), city.timeZone)) {
+          return false;
+        }
+        const start = Date.parse(candidate.timing.start);
+        const plannedStart = candidate.timing.start;
         if (!canAttendAt(candidate, plannedStart)) return false;
         const end = Date.parse(plannedEnd(candidate, plannedStart));
         return (
@@ -837,83 +1123,38 @@ export class LocalBuzzActions {
           "Search for another nearby happening in the available time window.",
         );
       }
-      const start = new Date(
-        Math.max(Date.parse(target.plannedStart), Date.parse(replacement.timing.start)),
-      ).toISOString();
+      const start = replacement.timing.start;
       const repaired: PlanStop = {
         ...target,
         happeningId: replacement.id,
         plannedStart: start,
         plannedEnd: plannedEnd(replacement, start),
         locked: false,
-        status: "proposed",
+        status: "active",
       };
       repairedStops[targetIndex] = repaired;
-      changes.push({
-        id: `change-repair-${target.id}`,
-        type: "replace",
-        stopId: target.id,
-        before: target,
-        after: repaired,
-        reason: input.reason,
-        status: "staged",
-      });
+      changedStopIds.push(target.id);
     }
-    const plan = summarizePlan(state, repairedStops, "staged", base.constraints, input.reason);
+    const plan = summarizePlan(state, repairedStops, base.constraints, input.reason);
     if (plan.totalEstimatedCost > plan.constraints.budget) {
       return error("BUDGET_CONFLICT", "The available repair would exceed the night’s budget.");
     }
+    const readiness = recheckPlanOperationalReadiness(state, plan, this.now());
+    if (!readiness.ok) return readiness;
     const preservedLockedStopIds = base.stops.filter((stop) => stop.locked).map((stop) => stop.id);
     this.update((current) => ({
       ...current,
-      stagedPlan: plan,
-      stagedChanges: changes,
+      currentPlan: plan,
       visibleHappeningIds: Array.from(new Set([...current.visibleHappeningIds, ...plan.stops.filter(isHappeningStop).map((s) => s.happeningId)])),
-      activityMessage: `Repair staged: ${changes.length} stop changed; ${preservedLockedStopIds.length} locked stop preserved.`,
+      activityMessage: `Repair applied: ${changedStopIds.length} stop changed; ${preservedLockedStopIds.length} locked stop preserved.`,
     }));
     return {
       ok: true,
-      changedStopIds: changes.map((change) => change.stopId ?? ""),
+      changedStopIds,
       preservedLockedStopIds,
       plan,
-      warnings: [],
+      warnings: readiness.warnings,
     };
-  }
-
-  acceptStagedChanges(): DomainResult<{ plan: EveningPlan }> {
-    const state = this.read();
-    if (!state.stagedPlan) return error("NO_STAGED_CHANGES", "There are no staged changes to accept.");
-    const plan: EveningPlan = {
-      ...state.stagedPlan,
-      status: "accepted",
-      stops: state.stagedPlan.stops.map((stop) => ({
-        ...stop,
-        status: isHappeningStop(stop) && unavailable.has(findHappening(state, stop.happeningId)?.status.availability ?? "unknown")
-          ? "unavailable"
-          : "accepted",
-      })),
-    };
-    this.update((current) => ({
-      ...current,
-      currentPlan: plan,
-      stagedPlan: null,
-      stagedChanges: [],
-      activityMessage: "The human accepted the staged night. It is now canonical.",
-    }));
-    return { ok: true, plan };
-  }
-
-  rejectStagedChanges(): DomainResult<{ rejectedChangeCount: number }> {
-    const state = this.read();
-    if (!state.stagedPlan) return error("NO_STAGED_CHANGES", "There are no staged changes to reject.");
-    const rejectedChangeCount = state.stagedChanges.length;
-    this.update((current) => ({
-      ...current,
-      stagedPlan: null,
-      stagedChanges: [],
-      activityMessage: "Staged agent changes rejected; canonical state is untouched.",
-    }));
-    return { ok: true, rejectedChangeCount };
   }
 
   applyLiveUpdate(update: LiveUpdate): DomainResult<{ happeningId: string; affectedStopIds: string[] }> {
@@ -932,8 +1173,7 @@ export class LocalBuzzActions {
             ),
           }
         : null;
-    const affectedStopIds = [state.currentPlan, state.stagedPlan]
-      .flatMap((plan) => plan?.stops ?? [])
+    const affectedStopIds = (state.currentPlan?.stops ?? [])
       .filter((stop) => isHappeningStop(stop) && stop.happeningId === update.happeningId)
       .map((stop) => stop.id);
     this.update((current) => ({
@@ -951,7 +1191,6 @@ export class LocalBuzzActions {
           : item,
       ),
       currentPlan: affectPlan(current.currentPlan),
-      stagedPlan: affectPlan(current.stagedPlan),
       liveUpdates: [...current.liveUpdates, update],
       activityMessage: "Demo simulation: a selected event is now unavailable. The night needs repair.",
     }));
@@ -973,11 +1212,11 @@ export class LocalBuzzActions {
   switchCity(cityId: CityId) {
     if (cityId === this.read().activeCityId) return;
     const status = this.read().webMcp;
-    this.write({ ...createInitialState(cityId), webMcp: status });
+    this.write({ ...createInitialState(cityId, this.now()), webMcp: status });
   }
 
   resetDemo() {
     const { activeCityId, webMcp } = this.read();
-    this.write({ ...createInitialState(activeCityId), webMcp });
+    this.write({ ...createInitialState(activeCityId, this.now()), webMcp });
   }
 }

@@ -105,7 +105,7 @@ const stockholmSeedPlaces: Place[] = [
     priceRange: { min: 165, max: 675, currency: "SEK", basis: "per_person" }, weeklyHours: {},
     exceptionalHours: { status: "unknown" }, reservationMode: "available",
     provenance: [source("Akkurat official site", "https://akkurat.se/", ["address", "drink focus"]), source("Akkurat official menu PDF", "https://akkurat.se/wp-content/uploads/2026/04/MENY-kvall-hemsida.pdf", ["menu prices", "late kitchen service"])],
-    verification: { status: "needs_review", verifiedAt, note: "Weekly opening hours require confirmation before this record can be staged." },
+    verification: { status: "needs_review", verifiedAt, note: "Weekly opening hours require confirmation before this record can be used in an itinerary." },
   }),
   place({
     id: "sthlm-pharmarium", cityId: "stockholm", name: "Pharmarium", kind: "cocktail_lounge",

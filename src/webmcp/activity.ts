@@ -47,17 +47,21 @@ const agentActivitySpecs: Record<string, ToolActivitySpec> = {
     target: "shared",
     phases: ["Reading place record", "Checking evidence and hours", "Place details returned"],
   },
-  stage_place_stop: {
+  add_place_stop: {
     target: "timeline",
-    phases: ["Checking place constraints", "Adding place to the route", "Place stop ready for review"],
+    phases: ["Checking place constraints", "Adding place to the route", "Place added"],
   },
-  stage_custom_place: {
+  add_custom_place_stop: {
     target: "timeline",
-    phases: ["Reading custom assumptions", "Validating unverified stop", "Custom stop ready for review"],
+    phases: ["Reading custom assumptions", "Validating custom stop", "Custom stop added"],
   },
-  stage_evening_plan: {
+  add_happening_stop: {
     target: "timeline",
-    phases: ["Checking plan constraints", "Building staged route", "Proposal ready for review"],
+    phases: ["Checking event constraints", "Adding event to the route", "Event added"],
+  },
+  build_evening_plan: {
+    target: "timeline",
+    phases: ["Checking plan constraints", "Building shared route", "Itinerary ready"],
   },
   read_current_plan: {
     target: "shared",
@@ -67,17 +71,17 @@ const agentActivitySpecs: Record<string, ToolActivitySpec> = {
     target: "timeline",
     phases: ["Reading selected stop", "Applying human constraint", "Stop protected"],
   },
+  unlock_plan_stop: {
+    target: "timeline",
+    phases: ["Reading selected stop", "Removing lock constraint", "Stop unlocked"],
+  },
+  remove_plan_stop: {
+    target: "timeline",
+    phases: ["Reading selected stop", "Recalculating itinerary", "Stop removed"],
+  },
   repair_plan: {
     target: "timeline",
-    phases: ["Preserving locked stops", "Repairing affected route", "Minimal repair staged"],
-  },
-  accept_staged_changes: {
-    target: "timeline",
-    phases: ["Reading reviewed proposal", "Committing shared state", "Night accepted"],
-  },
-  reject_staged_changes: {
-    target: "timeline",
-    phases: ["Reading staged changes", "Restoring canonical state", "Proposal cleared"],
+    phases: ["Preserving locked stops", "Repairing affected route", "Minimal repair applied"],
   },
 };
 

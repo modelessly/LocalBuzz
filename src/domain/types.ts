@@ -157,6 +157,7 @@ export type SearchFilters = {
   query?: string;
   startAfter?: string;
   endBefore?: string;
+  activeAt?: string;
   maxPrice?: number;
   categories?: HappeningCategory[];
   near?: { lat: number; lng: number };
@@ -177,7 +178,7 @@ type PlanStopBase = {
   plannedStart: string;
   plannedEnd: string;
   locked: boolean;
-  status: "proposed" | "accepted" | "conflict" | "unavailable";
+  status: "active" | "conflict" | "unavailable";
 };
 
 export type HappeningPlanStop = PlanStopBase & {
@@ -213,23 +214,12 @@ export type PlanStop = HappeningPlanStop | PlacePlanStop | CustomPlacePlanStop;
 
 export type EveningPlan = {
   id: string;
-  status: "staged" | "accepted";
   stops: PlanStop[];
   totalEstimatedCost: number;
   startTime: string;
   endTime: string;
   constraints: PlanConstraints;
   rationale?: string;
-};
-
-export type PlanChange = {
-  id: string;
-  type: "add" | "remove" | "replace" | "retime";
-  stopId?: string;
-  before?: PlanStop;
-  after?: PlanStop;
-  reason?: string;
-  status: "staged" | "accepted" | "rejected";
 };
 
 export type LiveUpdate = {
@@ -239,6 +229,75 @@ export type LiveUpdate = {
   label: string;
   source: "demo_simulation";
   appliedAt: string;
+};
+
+export type EventSourceStateStatus =
+  | "fresh"
+  | "retained"
+  | "unavailable"
+  | "disabled"
+  | "invalid"
+  | "refreshing";
+
+export type EventSourceState = {
+  sourceId: string;
+  publisher: string;
+  status: EventSourceStateStatus;
+  attemptedAt: string;
+  lastSuccessfulRefresh?: string;
+  acceptedCount: number;
+  rejectedCount: number;
+  retainedCount: number;
+  expiredCount: number;
+  emptySuccessful: boolean;
+  candidateCount?: number;
+  marginalUniqueCount?: number;
+  uniqueVenueCount?: number;
+  todayCount?: number;
+  tonightCount?: number;
+  next24HoursCount?: number;
+  rejectionReasons?: Record<string, number>;
+  message?: string;
+};
+
+export type EventInventoryState = {
+  cityId: CityId;
+  refreshId?: string;
+  generatedAt?: string;
+  refreshing: boolean;
+  currentCount: number;
+  retainedCount: number;
+  expiredCount: number;
+  sources: EventSourceState[];
+};
+
+export type CityEventSnapshotSource = {
+  sourceId: string;
+  publisher: string;
+  status: Exclude<EventSourceStateStatus, "refreshing">;
+  attemptedAt: string;
+  lastSuccessfulRefresh?: string;
+  eventCount: number;
+  rejectedCount: number;
+  retainedCount: number;
+  expiredCount: number;
+  emptySuccessful: boolean;
+  candidateCount?: number;
+  marginalUniqueCount?: number;
+  uniqueVenueCount?: number;
+  todayCount?: number;
+  tonightCount?: number;
+  next24HoursCount?: number;
+  rejectionReasons?: Record<string, number>;
+  message?: string;
+};
+
+export type CityEventSnapshotWire = {
+  cityId: CityId;
+  generatedAt: string;
+  retained: boolean;
+  happenings: Happening[];
+  sources: CityEventSnapshotSource[];
 };
 
 export type LocalBuzzState = {
@@ -252,13 +311,14 @@ export type LocalBuzzState = {
   visiblePlaceIds: string[];
   candidatePlaceIds: string[];
   currentPlan: EveningPlan | null;
-  stagedPlan: EveningPlan | null;
-  stagedChanges: PlanChange[];
   liveUpdates: LiveUpdate[];
+  eventInventory: EventInventoryState;
   discoveryLeads: DiscoveryLead[];
   selectedHappeningId?: string;
   selectedPlaceId?: string;
   candidateReason?: string;
+  candidateReasonOrigin?: "human" | "agent";
+  discoveryMode: "events" | "places";
   activityMessage: string;
   webMcp: "checking" | "available" | "unavailable" | "error";
 };
@@ -277,7 +337,6 @@ export type DomainErrorCode =
   | "TIME_CONFLICT"
   | "BUDGET_CONFLICT"
   | "NO_REPAIR_FOUND"
-  | "NO_STAGED_CHANGES"
   | "INVALID_INPUT"
   | "INVALID_URL"
   | "WRONG_CITY"
@@ -310,7 +369,11 @@ type DiscoveryLeadBase = {
   cityId: CityId;
   originalSourceUrl: string;
   sourceType: "official_page" | "venue_calendar" | "ticket_page" | "editorial_page" | "other_public_page";
-  submittedBy: { kind: "webmcp_agent"; toolName: "propose_event_from_url" | "propose_place_from_url" };
+  submittedBy:
+    | { kind: "webmcp_agent"; toolName: "propose_event_from_url" | "propose_place_from_url" }
+    | { kind: "targeted_collector"; sourceId: "xai_web_coverage"; coverageCellId: string }
+    | { kind: "municipal_corroboration"; sourceId: string; officialIdentifier: string }
+    | { kind: "event_graph"; sourceId: string; rootHappeningId: string; edgePath: string[] };
   missingRequiredFields: string[];
   possibleDuplicateMatches: Array<{ id: string; name: string; reason: string }>;
   verificationStatus: "provisional" | "needs_review" | "verified" | "rejected" | "unverified_custom";

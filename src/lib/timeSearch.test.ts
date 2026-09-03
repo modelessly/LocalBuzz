@@ -11,10 +11,9 @@ const NOW = new Date("2026-08-31T12:45:00.000Z");
 const TIME_ZONE = "Europe/Stockholm";
 
 describe("time selector search windows", () => {
-  it("starts Right Now at the actual current instant and ends at city-local midnight", () => {
+  it("uses an explicit active-at instant for events happening right now", () => {
     expect(getSearchWindow("now", "2026-08-31", TIME_ZONE, NOW)).toEqual({
-      startAfter: "2026-08-31T12:45:00.000Z",
-      endBefore: "2026-08-31T22:00:00.000Z",
+      activeAt: "2026-08-31T12:45:00.000Z",
     });
   });
 

@@ -131,7 +131,7 @@ The agent:
 6. the agent reads the changed plan state
 7. a selected event becomes unavailable
 8. the agent repairs the plan while preserving locked stops
-9. the human accepts the revised night
+9. the validated repair appears directly in the shared night
 
 ## Proof-of-concept cities
 
@@ -140,7 +140,7 @@ The proof of concept supports two intentionally contrasting city contexts:
 - Stockholm remains the primary contest screenplay and reliability path.
 - San Francisco demonstrates that the shared-state model, real map, source provenance, currency, and agent tools are not Stockholm-specific.
 
-For two cities, the human switches through a compact header toggle. Switching cities clears the current and staged night so plans can never mix inventory across cities. A production version may resolve the city from hostnames such as `stockholm.localbuzz.com` while retaining the same city model.
+For two cities, the human switches through a compact header toggle. Switching cities clears the current night so plans can never mix inventory across cities. A production version may resolve the city from hostnames such as `stockholm.localbuzz.com` while retaining the same city model.
 
 ## Product principles
 
@@ -209,3 +209,7 @@ A judge should understand within three minutes that:
 4. WebMCP is central to the main workflow
 5. the experience solves a recognizable real-world problem
 6. the product demonstrates something qualitatively different from an AI-generated itinerary
+
+## Data-expansion boundary
+
+Canonical inventory, human-reviewed discovery leads, municipal radar, social pulse and external benchmarks have different evidence standards. Relationship expansion and provider comparisons may identify useful missing records, but they never publish automatically. The user-facing promise remains a calm, reviewable shared night—not an exhaustive city index or an autonomous crawler.

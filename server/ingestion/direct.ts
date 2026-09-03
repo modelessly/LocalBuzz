@@ -26,5 +26,5 @@ export async function collectDirectSource(options: DirectOptions) {
     }
   }
   const normalized = candidates.map((candidate) => normalizeEventCandidate(candidate, options.source, attemptedAt, options.now));
-  return { happenings: normalized.flatMap((item) => item.happening ? [item.happening] : []), rejected: normalized.flatMap((item) => item.reason ? [item.reason] : []), status: "fresh" as const, attemptedAt };
+  return { happenings: normalized.flatMap((item) => item.happening ? [item.happening] : []), rejected: normalized.flatMap((item) => item.reason ? [item.reason] : []), candidateCount: candidates.length, status: "fresh" as const, attemptedAt };
 }

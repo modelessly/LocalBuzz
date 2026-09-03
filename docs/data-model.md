@@ -240,11 +240,13 @@ type OpeningHoursEvidence = {
 
 Search filters now include purpose, maximum per-person price, mood, neighborhood, kind and an ISO `openAt` arrival. UI and WebMCP calls share `LocalBuzzActions.searchPlaces`; open-at filtering excludes records whose operating state cannot be established.
 
-Planning remains stricter than discovery. It rejects closed visits, arrivals after a known kitchen cutoff, unknown price/hours, currency mismatch, party-size budget excess, overlapping adjacent stops, insufficient visit duration and reservation-required spontaneous stops. It returns visible warnings for `needs_review`/`unverified` records, verification older than 90 days, unknown exceptional hours and recommended reservations.
+Planning remains stricter than discovery. It rejects closed visits, arrivals after a known kitchen cutoff, unknown price/hours, currency mismatch, party-size budget excess, overlapping adjacent stops, insufficient visit duration and reservation-required spontaneous stops. It returns specific plain-language warnings for incomplete or stale operating evidence, unknown exceptional hours, custom-place assumptions and recommended reservations. Internal qualification enum names are not rendered as UI tags.
 
 ## Phase 3 ingestion contracts
 
 `Happening` remains the only published event entity. Server-only `EventSourceDefinition`, `EventCandidate`, `SourceRefreshResult` and `CityEventSnapshot` contracts isolate source variation. Normalization requires city, physical venue/address/coordinates, explicit zoned time, non-expiration, canonical HTTPS URL, valid status and city-consistent currency.
+
+The shared nightly timing contract accepts effective durations up to and including 720 minutes. Explicit longer ends are rejected rather than shortened; missing ends normalize to 90 minutes. `isNightlyHappening` and `occurrenceEndMs` are the common defense used by ingestion, retention, startup inventory and search.
 
 `CityEventSnapshot.retained` and per-source status carry operational truth without changing plan stops. Provenance and freshness continue through `Happening.source`, keeping cards and WebMCP results backward-compatible.
 
@@ -253,3 +255,25 @@ Planning remains stricter than discovery. It rejects closed visits, arrivals aft
 `DiscoveryLead` is a discriminated event/Place union with city, extracted fields, original source URL/type, WebMCP submission metadata, missing fields, duplicate matches, verification status, evidence references, timestamps and review outcome. Leads are never part of canonical search.
 
 Review outcomes are `accepted_canonical`, `rejected` or `kept_custom`. Canonical acceptance constructs a normal `Happening` or `Place` and runs the existing validators. `kept_custom` is Place-only and produces the existing embedded `CustomPlacePlanStop` with `verification.status: "unverified"`; it does not add a Place to the catalog.
+
+## Phase 5 discovery measurement
+
+`CoverageCell` is a deterministic count keyed by city, configured neighborhood, canonical category, local time window, city-currency price band and lead-time band. It carries stable ID, matching canonical event IDs, count and `empty | weak | covered` strength. `CoverageReport` adds stale inventory and aggregate neighborhood/category/late-night/inexpensive/corridor gaps without becoming product state.
+
+`MunicipalRadarRecord` retains an official identifier, known location/dates, permit status, source URL, fetch time and suggested independent-evidence query. Its immutable corroboration state is `required`; it is not a partial `Happening`.
+
+Collector-produced discovery leads extend `submittedBy` with `targeted_collector` and `municipal_corroboration` variants. They otherwise use the same Phase 4 lead union, validators, review outcomes and canonical acceptance boundary.
+
+## Phase 6 relationship and benchmark contracts
+
+`EventGraphNode` captures stable event, venue, organizer, performer and ticket-platform identities. `EventGraphEdge` carries relationship, source URL, observation time and trust state. `EventGraphSnapshot` includes enforced limits, query count, rejected candidates, duplicate suggestions, source proposals and normal review-only `DiscoveryLead`s. Graph-authored leads use `submittedBy.kind: "event_graph"` with their root canonical happening and edge path.
+
+`BenchmarkEvent` is deliberately not a `Happening`. `BenchmarkSnapshot` always has `benchmarkOnly: true`, provider/terms/status metadata, last-good retention state and comparison metrics. No conversion function to canonical inventory exists. `SourceOperationPolicy` records cadence, per-run/day bounds, credential name, raw-retention, attribution and text/image reuse rules.
+
+Every direct plan mutation reuses canonical Place visit validation and event availability before replacing `currentPlan`. Operational conflicts leave the existing plan unchanged; stale or unknown evidence and custom Place status return explicit warnings.
+
+## Startup inventory state
+
+`LocalBuzzState.eventInventory` is the canonical browser contract for event availability. It carries city/request/generated-at identity, refresh state, current/retained/expired totals, and `EventSourceState[]`.
+
+Each source exposes identifier/publisher, `fresh | retained | unavailable | disabled | invalid | refreshing`, attempt and last-success times, accepted/rejected/retained/expired counts, empty-success state and a safe reason. This is operational metadata, not another copy of `Happening`; canonical records remain in `state.happenings` and plans continue to reference stable IDs.

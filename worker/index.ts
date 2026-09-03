@@ -13,6 +13,8 @@ interface Env {
   XAI_API_KEY?: string;
   XAI_MODEL?: string;
   TICKETMASTER_API_KEY?: string;
+  BILLETTO_API_KEY?: string;
+  BILLETTO_API_SECRET?: string;
 }
 
 function fixtureSnapshot(cityId: CityId, now = new Date()): CityEventSnapshot {
@@ -37,7 +39,7 @@ async function ingestionResponse(request: Request, env: Env, context: WorkerCont
   if (lastGoodResponse) {
     try { previous = await lastGoodResponse.json() as CityEventSnapshot; } catch { /* use validated checked-in fixture */ }
   }
-  const snapshot = await refreshCityEvents({ cityId, ticketmasterApiKey: env.TICKETMASTER_API_KEY, previous });
+  const snapshot = await refreshCityEvents({ cityId, ticketmasterApiKey: env.TICKETMASTER_API_KEY, billettoApiKey: env.BILLETTO_API_KEY, billettoApiSecret: env.BILLETTO_API_SECRET, xaiApiKey: env.XAI_API_KEY, xaiModel: env.XAI_MODEL, previous });
   const response = json(snapshot, { headers: { "Cache-Control": "public, max-age=900", "X-Ingestion-Snapshot": snapshot.retained ? "RETAINED" : "FRESH" } });
   context.waitUntil(edgeCache.put(responseKey, response.clone()));
   if (!snapshot.retained && snapshot.happenings.length) {
@@ -139,7 +141,7 @@ async function eventsResponse(request: Request, env: Env, context: WorkerContext
     response.headers.set("X-Events-Cache", "HIT");
     return response;
   }
-  if (!env.XAI_API_KEY) return json(verifiedSanFranciscoFallback(), { headers: { "Cache-Control": `public, max-age=${CACHE_SECONDS}` } });
+  if (!env.XAI_API_KEY) return json({ ...verifiedSanFranciscoFallback(), status: "unavailable", error: "XAI_API_KEY is not configured." }, { headers: { "Cache-Control": `public, max-age=${CACHE_SECONDS}` } });
   try {
     const result = await collectSanFranciscoEvents({ apiKey: env.XAI_API_KEY, model: env.XAI_MODEL });
     const payload = withVerifiedFallback(result.payload);
@@ -157,7 +159,7 @@ async function eventsResponse(request: Request, env: Env, context: WorkerContext
     return response;
   } catch (error) {
     console.error(JSON.stringify({ event: "sf_events_failure", message: error instanceof Error ? error.message : "unknown failure" }));
-    return json(verifiedSanFranciscoFallback(), { headers: { "Cache-Control": `public, max-age=${CACHE_SECONDS}` } });
+    return json({ ...verifiedSanFranciscoFallback(), status: "unavailable", error: "Scheduled-event collection failed; no result was published as fresh." }, { headers: { "Cache-Control": `public, max-age=${CACHE_SECONDS}` } });
   }
 }
 

@@ -13,7 +13,7 @@ type HappeningCardProps = {
   onSelect: () => void;
   onSwap: () => void;
   onReject: () => void;
-  onStage: () => void;
+  onAdd: () => void;
 };
 
 export function HappeningCard({
@@ -26,7 +26,7 @@ export function HappeningCard({
   onSelect,
   onSwap,
   onReject,
-  onStage,
+  onAdd,
 }: HappeningCardProps) {
   const unavailable = ["sold_out", "cancelled"].includes(happening.status.availability);
   return (
@@ -55,8 +55,8 @@ export function HappeningCard({
       </div>
       <div className="happening-card__source">
         <span>{happening.source.lastVerifiedAt
-          ? `Source verified ${formatDay(happening.source.lastVerifiedAt, timeZone)}`
-          : "Source verification date unavailable"}</span>
+          ? `Source checked ${formatDay(happening.source.lastVerifiedAt, timeZone)}`
+          : "Source date unavailable"}</span>
         <a href={happening.source.url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
           {happening.source.name} <ArrowUpRight aria-hidden="true" size={12} />
         </a>
@@ -66,14 +66,15 @@ export function HappeningCard({
           <ModelessButton variant="outline" size="sm" onClick={onReject} aria-label={`Reject ${happening.title}`}>
             <X aria-hidden="true" size={14} /> Not this
           </ModelessButton>
-          <ModelessButton variant="signal" size="sm" onClick={onSwap} disabled={!canSwap || inPlan}>
-            <RefreshCw aria-hidden="true" size={14} /> {inPlan ? "Planned" : "Swap in"}
-          </ModelessButton>
+          {!inPlan ? <ModelessButton variant="signal" size="sm" onClick={onAdd}><Plus aria-hidden="true" size={14} /> Add event</ModelessButton> : null}
+          {canSwap && !inPlan ? <ModelessButton variant="outline" size="sm" onClick={onSwap}>
+            <RefreshCw aria-hidden="true" size={14} /> Swap in
+          </ModelessButton> : null}
         </div>
       ) : null}
       {!candidate && !unavailable && !inPlan ? (
         <div className="happening-card__actions" onClick={(event) => event.stopPropagation()}>
-          <ModelessButton variant="signal" size="sm" onClick={onStage}><Plus aria-hidden="true" size={14} /> Add event</ModelessButton>
+          <ModelessButton variant="signal" size="sm" onClick={onAdd}><Plus aria-hidden="true" size={14} /> Add event</ModelessButton>
         </div>
       ) : null}
     </article>

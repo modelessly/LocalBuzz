@@ -1,23 +1,7 @@
-import type { CityId, Happening } from "../domain/types";
+import type { CityEventSnapshotSource, CityEventSnapshotWire, CityId } from "../domain/types";
 
-export type CityEventSourceStatus = {
-  sourceId: string;
-  publisher: string;
-  status: "fresh" | "retained" | "unavailable" | "disabled" | "invalid";
-  attemptedAt: string;
-  lastSuccessfulRefresh?: string;
-  eventCount: number;
-  rejectedCount: number;
-  message?: string;
-};
-
-export type CityEventSnapshotPayload = {
-  cityId: CityId;
-  generatedAt: string;
-  retained: boolean;
-  happenings: Happening[];
-  sources: CityEventSourceStatus[];
-};
+export type CityEventSourceStatus = CityEventSnapshotSource;
+export type CityEventSnapshotPayload = CityEventSnapshotWire;
 
 export async function loadCityEventSnapshot(cityId: CityId, signal?: AbortSignal): Promise<CityEventSnapshotPayload> {
   const response = await fetch(`/api/ingestion/${cityId}`, { signal });

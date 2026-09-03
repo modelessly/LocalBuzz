@@ -11,5 +11,5 @@
     "allowImportingTsExtensions": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["vite.config.ts", "server/**/*.ts", "src/data/**/*.ts", "src/domain/types.ts", "src/domain/happeningDedup.ts"]
+  "include": ["vite.config.ts", "server/**/*.ts", "src/data/**/*.ts", "src/domain/**/*.ts", "src/lib/timeSearch.ts"]
 }

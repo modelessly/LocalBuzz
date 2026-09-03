@@ -81,5 +81,5 @@ export async function collectVisitSweden(options: VisitSwedenOptions) {
     return match ? { ...candidate, venue: { ...candidate.venue, ...match } } : candidate;
   });
   const normalized = resolved.map((candidate) => normalizeEventCandidate(candidate, options.source, attemptedAt, options.now));
-  return { happenings: normalized.flatMap((item) => item.happening ? [item.happening] : []), rejected: normalized.flatMap((item) => item.reason ? [item.reason] : []), status: "fresh" as const, attemptedAt, measuredTotal: parsed.total };
+  return { happenings: normalized.flatMap((item) => item.happening ? [item.happening] : []), rejected: normalized.flatMap((item) => item.reason ? [item.reason] : []), candidateCount: parsed.candidates.length, status: "fresh" as const, attemptedAt, measuredTotal: parsed.total };
 }

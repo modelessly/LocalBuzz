@@ -7,7 +7,9 @@ export type EventSourceFormat =
   | "venue_json"
   | "event_sitemap"
   | "linked_data"
-  | "ticketmaster";
+  | "ticketmaster"
+  | "billetto"
+  | "xai_web";
 
 export type EventParserId =
   | "schema-org-event"
@@ -16,7 +18,9 @@ export type EventParserId =
   | "venue-json-event"
   | "event-sitemap"
   | "visit-sweden-linked-data"
-  | "ticketmaster-discovery";
+  | "ticketmaster-discovery"
+  | "billetto-public-events"
+  | "xai-web-events";
 
 export type SourceTrustTier = "official_api" | "first_party" | "sanctioned_aggregator";
 export type TermsReviewStatus = "approved" | "review_required" | "restricted";
@@ -74,7 +78,8 @@ export type SourceRefreshStatus =
   | "retained"
   | "unavailable"
   | "disabled"
-  | "invalid";
+  | "invalid"
+  | "refreshing";
 
 export type SourceRefreshResult = {
   sourceId: string;
@@ -84,6 +89,16 @@ export type SourceRefreshResult = {
   lastSuccessfulRefresh?: string;
   eventCount: number;
   rejectedCount: number;
+  retainedCount: number;
+  expiredCount: number;
+  emptySuccessful: boolean;
+  candidateCount?: number;
+  marginalUniqueCount?: number;
+  uniqueVenueCount?: number;
+  todayCount?: number;
+  tonightCount?: number;
+  next24HoursCount?: number;
+  rejectionReasons?: Record<string, number>;
   message?: string;
 };
 

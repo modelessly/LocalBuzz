@@ -18,6 +18,12 @@
     "events:sf": "vite-node scripts/collect-sf-events.ts",
     "events:refresh": "vite-node scripts/refresh-city-events.ts",
     "places:import": "vite-node scripts/import-foursquare-places.ts",
+    "data:coverage": "vite-node scripts/report-coverage.ts",
+    "data:discover": "vite-node scripts/discover-coverage-gap.ts",
+    "data:radar": "vite-node scripts/refresh-municipal-radar.ts",
+    "data:graph": "vite-node scripts/build-event-graph.ts",
+    "data:benchmark": "vite-node scripts/benchmark-coverage.ts",
+    "data:audit": "vite-node scripts/audit-data-quality.ts",
     "deploy": "npm run build && npx wrangler deploy",
     "verify": "npm run lint && npm run typecheck && npm run typecheck:pulse && npm run test && npm run build"
   },

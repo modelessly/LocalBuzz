@@ -60,6 +60,8 @@ For the two-city proof of concept, use a compact city dropdown in the header. It
 
 Use a neighboring time selector with Right Now, Later, Tomorrow, and Pick a date. The choice must change the real search window and its CTA, not merely change the label.
 
+`Right Now` shows only bounded events whose occurrence is active at the current city-local instant; multi-day passes and provider sale windows longer than 24 hours are not treated as live activity. `Later` shows events that start after the current instant and before local midnight. `Tomorrow` and picked dates show events starting within that local calendar day. Empty selections stay empty and never silently advance to another day. A completed source refresh must reapply the active selection rather than exposing the full unexpired catalog.
+
 The UI should make it obvious which elements are:
 
 - available
@@ -201,21 +203,33 @@ Local Buzz distinguishes agent work from human input without introducing an arti
 - **Intent Loom:** four labeled strands—place, time, budget, and taste—leave the command bay on the first real tool-lifecycle event and converge on the map, timeline, or shared-state surface the tool affects.
 - **Real progress instrument:** labels come from the actual tool lifecycle and name the active tool, current operation, completion, or structured failure.
 - **Living event signals:** restrained map rings communicate only derived event timing (live or starting soon); stale evidence is shown as a static dashed signal rather than false activity.
-- **Ghost-plan staging:** uncommitted plans retain a slight visual offset and dashed review boundary until the human accepts or rejects them.
+- **Plan arrival:** a validated WebMCP addition receives a brief directional arrival treatment tied to the real tool lifecycle; it is already part of the one editable itinerary.
 - **Surgical repair:** only replacement changes animate into the timeline and map; the prior stop and route remain as a faint repair scar while the revision is staged, while preserved stops stay anchored.
 
 Human clicks do not emit agent motion. Motion is explanatory, never a source of truth, and `prefers-reduced-motion` reduces every animation and transition to an immediate state change.
 
 ## Phase 1 Place language
 
-The discovery surface keeps the existing visual hierarchy and adds an Events/Places switch. Place cards lead with verification and kind, then location, source-backed interest evidence, duration, price range, use-case tags and official-source attribution. Lime remains the actionable accent; warning copy and disabled staging make incomplete records legible without presenting them as closed or poor quality.
+The discovery surface keeps the existing visual hierarchy and adds an Events/Places switch. Place cards lead with kind, then location, source-backed interest evidence, duration, price range, use-case tags and official-source attribution. Qualification states stay in the data model but are not rendered as tags. Plain operational copy and disabled staging make incomplete records legible without presenting them as closed or poor quality.
 
-Timeline stops state `Event` or their dinner/drinks purpose and separately state `canonical place` or `unverified custom`. The plan-level ghost treatment continues to distinguish staged from accepted. Existing lock, unavailable and surgical-repair labels remain unchanged. Place map pins use a compact square treatment; custom place pins add a dashed unverified treatment. Routes use all stop coordinates in planned order.
+Timeline stops identify custom places in supporting copy rather than with qualification or stop-type chips. Staged state remains structural through its review boundary and accept/reject controls, not a colored status badge. Locked and unavailable states use restrained plain text; surgical repair keeps its structural scar and motion without a repair label. Place map pins use a compact square treatment; custom place pins add a dashed treatment. Routes use all stop coordinates in planned order.
 
-The custom-place form intentionally asks for a narrow set of explicit assumptions and labels the result unverified in the form, timeline and map. Agent tool lifecycle uses the same command bay, Intent Loom targets and reduced-motion behavior; the five Place tools add labels but no new motion state.
+The custom-place form intentionally asks for a narrow set of explicit assumptions and keeps the result outside the canonical catalog. Agent tool lifecycle uses the same command bay, Intent Loom targets and reduced-motion behavior; the five Place tools add no new motion state.
+
+## Qualification copy and mission strip
+
+Do not render `verified`, `needs review`, `unverified`, or equivalent qualification statuses as tags anywhere in Local Buzz. Preserve source links, checked dates and domain safeguards. Do not add a red “hours and prices unavailable for planning” message to Place cards; disabled actions retain the guard without the warning row. Do not restore the numbered mission strip or city mission sentence; the city prompt remains available only through the agent handoff action.
 
 ## Phase 4 discovery review
 
 Agent-acquired records appear in a dedicated review surface between shared-state status and canonical discovery. Dashed lime boundaries and “Provisional · discovery only” copy distinguish leads from event/Place cards. Each lead shows extracted facts, original source, missing fields, duplicate warnings, verification issues and evidence references before accept/reject/custom actions.
 
 The Intent Loom adds a review target for the two proposal tools but keeps the existing real three-phase lifecycle and reduced-motion behavior. Proposal motion begins only on a WebMCP lifecycle event; human review clicks do not emit agent motion.
+
+## Phase 6 visual boundary
+
+Event graphs, provider benchmarks and operational ledgers remain development artifacts and do not add dashboard surfaces, badges or motion. Graph-created event leads reuse the existing provisional review treatment. Acceptance failures and warnings use the existing structured plan feedback, so staged/accepted, locked/repaired, canonical/custom-place and reduced-motion semantics do not change.
+
+## Your Night metadata boundary
+
+The itinerary does not render state as colored pills, chips or badges. Agent connection, budget, lock and unavailable information is plain text; staged review is communicated by the accept/reject controls and structural boundary. Manual demo staging, disruption and repair controls are not product UI. Real source updates and the statically registered `repair_plan` WebMCP tool continue to use the shared plan domain and motion system.

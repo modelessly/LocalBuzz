@@ -2,8 +2,8 @@ import { getCityDefinition } from "../data/cities";
 import { validateHappenings, validatePlaces } from "../data/validate";
 import type { CityId, DiscoveryLead, DiscoveryLeadEvidence, DiscoveryLeadIssueCode, DomainResult, EventDiscoveryFields, Happening, Place, PlaceDiscoveryFields } from "./types";
 
-export type ProposeEventLeadInput = { cityId: CityId; sourceUrl: string; sourceType: DiscoveryLead["sourceType"]; fields: EventDiscoveryFields; evidence: DiscoveryLeadEvidence[] };
-export type ProposePlaceLeadInput = { cityId: CityId; sourceUrl: string; sourceType: DiscoveryLead["sourceType"]; fields: PlaceDiscoveryFields; evidence: DiscoveryLeadEvidence[] };
+export type ProposeEventLeadInput = { cityId: CityId; sourceUrl: string; sourceType: DiscoveryLead["sourceType"]; fields: EventDiscoveryFields; evidence: DiscoveryLeadEvidence[]; submittedBy?: DiscoveryLead["submittedBy"] };
+export type ProposePlaceLeadInput = { cityId: CityId; sourceUrl: string; sourceType: DiscoveryLead["sourceType"]; fields: PlaceDiscoveryFields; evidence: DiscoveryLeadEvidence[]; submittedBy?: DiscoveryLead["submittedBy"] };
 
 const failure = <T>(code: Extract<DomainResult<T>, { ok: false }>["code"], message: string): DomainResult<T> => ({ ok: false, code, message });
 const normalized = (value?: string) => value?.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, " ").trim() ?? "";
@@ -70,7 +70,7 @@ export function buildEventLead(input: ProposeEventLeadInput, activeCityId: CityI
   if (!evidenceValid(input.evidence, checkedUrl.url) || input.sourceType === "editorial_page" || input.sourceType === "other_public_page") issues.add("INSUFFICIENT_PROVENANCE");
   const expectedCurrency = getCityDefinition(input.cityId).currency;
   if ((input.fields.commerce?.priceMin ?? 0) < 0 || (input.fields.commerce?.priceMax !== undefined && input.fields.commerce.priceMin !== undefined && input.fields.commerce.priceMax < input.fields.commerce.priceMin) || (input.fields.commerce?.currency && input.fields.commerce.currency !== expectedCurrency)) issues.add("INVALID_PRICE_CURRENCY");
-  return { ok: true, lead: { id: stableLeadId("event", checkedUrl.url, input.fields.title ?? "unknown"), leadType: "event", cityId: input.cityId, originalSourceUrl: checkedUrl.url, sourceType: input.sourceType, submittedBy: { kind: "webmcp_agent", toolName: "propose_event_from_url" }, fields: input.fields, missingRequiredFields: missing, possibleDuplicateMatches: duplicates, verificationStatus: issues.size || missing.length ? "needs_review" : "provisional", evidence: input.evidence, issues: [...issues], createdAt: now.toISOString() } };
+  return { ok: true, lead: { id: stableLeadId("event", checkedUrl.url, input.fields.title ?? "unknown"), leadType: "event", cityId: input.cityId, originalSourceUrl: checkedUrl.url, sourceType: input.sourceType, submittedBy: input.submittedBy ?? { kind: "webmcp_agent", toolName: "propose_event_from_url" }, fields: input.fields, missingRequiredFields: missing, possibleDuplicateMatches: duplicates, verificationStatus: issues.size || missing.length ? "needs_review" : "provisional", evidence: input.evidence, issues: [...issues], createdAt: now.toISOString() } };
 }
 
 export function buildPlaceLead(input: ProposePlaceLeadInput, activeCityId: CityId, places: Place[], now = new Date()): DomainResult<{ lead: Extract<DiscoveryLead, { leadType: "place" }> }> {
@@ -90,7 +90,7 @@ export function buildPlaceLead(input: ProposePlaceLeadInput, activeCityId: CityI
   if (!evidenceValid(input.evidence, checkedUrl.url) || input.sourceType === "editorial_page" || input.sourceType === "other_public_page") issues.add("INSUFFICIENT_PROVENANCE");
   const expectedCurrency = getCityDefinition(input.cityId).currency;
   if (!input.fields.priceRange || input.fields.priceRange.currency !== expectedCurrency || (input.fields.priceRange.min ?? 0) < 0 || (input.fields.priceRange.max !== undefined && input.fields.priceRange.min !== undefined && input.fields.priceRange.max < input.fields.priceRange.min)) issues.add("INVALID_PRICE_CURRENCY");
-  return { ok: true, lead: { id: stableLeadId("place", checkedUrl.url, input.fields.name ?? "unknown"), leadType: "place", cityId: input.cityId, originalSourceUrl: checkedUrl.url, sourceType: input.sourceType, submittedBy: { kind: "webmcp_agent", toolName: "propose_place_from_url" }, fields: input.fields, missingRequiredFields: missing, possibleDuplicateMatches: duplicates, verificationStatus: issues.size || missing.length ? "needs_review" : "provisional", evidence: input.evidence, issues: [...issues], createdAt: now.toISOString() } };
+  return { ok: true, lead: { id: stableLeadId("place", checkedUrl.url, input.fields.name ?? "unknown"), leadType: "place", cityId: input.cityId, originalSourceUrl: checkedUrl.url, sourceType: input.sourceType, submittedBy: input.submittedBy ?? { kind: "webmcp_agent", toolName: "propose_place_from_url" }, fields: input.fields, missingRequiredFields: missing, possibleDuplicateMatches: duplicates, verificationStatus: issues.size || missing.length ? "needs_review" : "provisional", evidence: input.evidence, issues: [...issues], createdAt: now.toISOString() } };
 }
 
 export function canonicalEventFromLead(lead: Extract<DiscoveryLead, { leadType: "event" }>, now = new Date()): DomainResult<{ happening: Happening }> {

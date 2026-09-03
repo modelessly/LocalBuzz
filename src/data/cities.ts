@@ -5,7 +5,7 @@ import {
   sanFranciscoHappenings,
 } from "./sanFranciscoHappenings";
 import { sanFranciscoPlaces, stockholmPlaces } from "./places";
-import type { CityId, CurrencyCode, Happening, Place, PlanConstraints } from "../domain/types";
+import type { CityId, CurrencyCode, Happening, Place, PlacePurpose, PlanConstraints } from "../domain/types";
 
 export type CityDefinition = {
   id: CityId;
@@ -16,7 +16,6 @@ export type CityDefinition = {
   mapCenter: [number, number];
   mapZoom: number;
   constraints: Omit<PlanConstraints, "latestEndTime">;
-  mission: string;
   agentPrompt: string;
   searchDefaults: {
     query: string;
@@ -29,6 +28,7 @@ export type CityDefinition = {
   demoInitialPlanIds: string[];
   demoStarts: Record<string, string>;
   repairHappeningIds: string[];
+  placeFallbackPlan: Array<{ placeId: string; purpose: PlacePurpose; localTime: string }>;
   snapshotLabel: string;
 };
 
@@ -47,7 +47,6 @@ const definitions: Record<CityId, CityDefinition> = {
       partySize: 2,
       startLocation: { lat: 59.319, lng: 18.072, label: "Slussen" },
     },
-    mission: "Near Slussen with a friend. 900 SEK, something unexpected, done by midnight.",
     agentPrompt: "Build a surprising night near Slussen for two under 900 SEK, done by midnight.",
     searchDefaults: {
       query: "unexpected music",
@@ -64,6 +63,10 @@ const definitions: Record<CityId, CityDefinition> = {
       "montelius-night-walk": "2026-08-30T22:00:00+02:00",
     },
     repairHappeningIds: ["forro-dance", "fringe-closing", "ruby-wax", "fotografiska-late"],
+    placeFallbackPlan: [
+      { placeId: "sthlm-bar-central", purpose: "dinner", localTime: "18:00:00" },
+      { placeId: "sthlm-stigbergets-fot", purpose: "drinks", localTime: "20:00:00" },
+    ],
     snapshotLabel: "48 source-backed Stockholm happenings",
   },
   "san-francisco": {
@@ -80,7 +83,6 @@ const definitions: Record<CityId, CityDefinition> = {
       partySize: 2,
       startLocation: { lat: 37.7599, lng: -122.4148, label: "Mission" },
     },
-    mission: "Near Mission with a friend. $75, something unexpected, done by midnight.",
     agentPrompt: "Build an unexpected San Francisco night near Mission for two under $75, done by midnight.",
     searchDefaults: {
       query: "local music",
@@ -97,6 +99,10 @@ const definitions: Record<CityId, CityDefinition> = {
       "sf-sindustry": "2026-08-30T21:15:00-07:00",
     },
     repairHappeningIds: ["sf-bird-beckett-jam", "sf-dear-san-francisco", "sf-hamburger-eyes"],
+    placeFallbackPlan: [
+      { placeId: "sf-horsefeather", purpose: "dinner", localTime: "18:00:00" },
+      { placeId: "sf-the-page", purpose: "drinks", localTime: "20:00:00" },
+    ],
     snapshotLabel: "12 source-backed San Francisco happenings",
   },
 };

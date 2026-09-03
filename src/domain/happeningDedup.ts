@@ -3,6 +3,13 @@ import type { Happening } from "./types";
 const normalizedText = (value: string) => value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, " ").trim();
 const dedupeKey = (item: Happening) => `${item.cityId}|${normalizedText(item.venue.name)}|${Date.parse(item.timing.start)}|${normalizedText(item.title)}`;
 const urlKey = (item: Happening) => `${item.cityId}|${new URL(item.commerce.bookingUrl ?? item.source.url).toString().replace(/\/$/, "")}`;
+const endMs = (item: Happening) => item.timing.end
+  ? Date.parse(item.timing.end)
+  : Date.parse(item.timing.start) + (item.timing.estimatedDurationMinutes ?? 90) * 60_000;
+const conflicts = (left: Happening, right: Happening) => left.cityId === right.cityId
+  && normalizedText(left.title) === normalizedText(right.title)
+  && Date.parse(left.timing.start) < endMs(right)
+  && Date.parse(right.timing.start) < endMs(left);
 
 export function deduplicateHappenings(items: Happening[]): Happening[] {
   const byKey = new Map<string, Happening>();
@@ -10,7 +17,7 @@ export function deduplicateHappenings(items: Happening[]): Happening[] {
   for (const item of [...items].sort((a, b) => Date.parse(b.source.lastVerifiedAt ?? "") - Date.parse(a.source.lastVerifiedAt ?? ""))) {
     const key = dedupeKey(item);
     const canonical = urlKey(item);
-    if (byKey.has(key) || seenUrls.has(canonical)) continue;
+    if (byKey.has(key) || seenUrls.has(canonical) || [...byKey.values()].some((existing) => conflicts(existing, item))) continue;
     byKey.set(key, item);
     seenUrls.add(canonical);
   }

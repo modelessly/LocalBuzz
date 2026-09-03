@@ -129,10 +129,10 @@ Reasoning:
 The human remains authoritative and agent work stays visible and reversible.
 
 Tradeoffs:
-The application maintains both canonical and staged plan state.
+The superseded implementation maintained two plan copies and an additional approval step.
 
 Status:
-Accepted
+Superseded on 2026-09-03 by “Use One Directly Editable Itinerary.”
 
 ---
 
@@ -315,7 +315,7 @@ Accepted; supersedes “Use Cloudflare Pages Deployment Shape.”
 ## 2026-08-30: Add San Francisco As A City-Scoped Proof Of Concept
 
 Decision:
-Support Stockholm and San Francisco through one explicit city-definition model. Use a compact two-option header switch for the proof of concept. Switching cities clears current and staged plans while preserving only WebMCP connection status.
+Support Stockholm and San Francisco through one explicit city-definition model. Use a compact two-option header switch for the proof of concept. Switching cities clears the current plan while preserving only WebMCP connection status.
 
 Reasoning:
 Two contrasting cities demonstrate that Local Buzz's shared human-agent workspace, map, provenance, currency, and WebMCP tools are portable. With only two choices, a visible toggle is faster and clearer than a dropdown. Resetting the night prevents mixed-city plans without requiring accounts, routing, or persistent storage.
@@ -395,10 +395,10 @@ Accepted
 ## 2026-08-31: Make Agent Motion Explain Shared-State Changes
 
 Decision:
-Use a distinct motion language for WebMCP actions: tool-lifecycle progress, a directional action trail, ghosted staged plans, and surgical repair animation limited to changed stops. Keep motion derived from WebMCP lifecycle events and existing plan state rather than adding agent-owned domain state.
+Use a distinct motion language for WebMCP actions: tool-lifecycle progress, a directional action trail, direct plan-stop arrivals, and surgical repair animation limited to changed stops. Keep motion derived from WebMCP lifecycle events and existing plan state rather than adding agent-owned domain state.
 
 Reasoning:
-The interaction is easier to understand when users can see which surface the agent changed, whether a proposal is committed, and exactly what a repair preserved. Real lifecycle labels also avoid fake AI-thinking theater.
+The interaction is easier to understand when users can see which surface the agent changed and exactly what a repair preserved. Real lifecycle labels also avoid fake AI-thinking theater.
 
 Tradeoffs:
 WebMCP calls include a 180ms visual handoff before mutation so the origin and destination can be perceived. The presentation is more distinctive but adds CSS and one small transient React state channel; reduced-motion users receive the same state changes without animation.
@@ -485,3 +485,83 @@ Agents must supply structured evidence, and incomplete leads require human resol
 
 Status:
 Accepted
+
+---
+
+## 2026-09-01: Measure Gaps And Keep Municipal Records As Radar
+
+Decision:
+Add a deterministic coverage cube and use its weak cells to generate narrow, manually invoked discovery searches. Keep DataSF closure and PermitSF records in a separate last-good radar snapshot; require independent official event evidence before they can become DiscoveryLeads, and retain human review before canonical publication.
+
+Reasoning:
+Collecting another broad feed overrepresents obvious categories while leaving neighborhood, late-night and inexpensive gaps invisible. Municipal records can reveal emerging activity but are operational permits, not public event listings. The existing discovery frontier is the correct boundary for uncertain acquisition.
+
+Tradeoffs:
+The fixed neighborhood and 3.5 km corridor configurations are deterministic proxies, not a complete city ontology or travel-time model. Targeted xAI searches remain credential-dependent and manual to control cost. Stockholm municipal radar remains disabled until the official credentialed collection and fields are verified.
+
+Status:
+Accepted
+
+---
+
+## 2026-09-02: Bound Relationship Discovery And Keep Benchmarks Non-Canonical
+
+Decision:
+Expand only from trusted canonical event identities through a depth-, domain-, query-, record- and cadence-bounded graph. Keep PredictHQ and approved Bandsintown results in benchmark-only snapshots; do not implement Songkick without licensed access. Recheck operational event and Place facts before every direct itinerary mutation.
+
+Reasoning:
+Relationship evidence can expose missing inventory, but uncertain identity joins and commercial-provider rows do not meet Local Buzz's canonical publication standard. Explicit operational policy preserves reviewability, quota safety, licensing boundaries and last-good behavior.
+
+Tradeoffs:
+The graph will miss valid relationships outside its allowlist and requires prepared structured candidates. Benchmarks require credentials and terms approval and cannot improve visible inventory directly. Direct itinerary mutations may stop when source status or Place operations no longer pass validation.
+
+Status:
+Accepted
+
+---
+
+## 2026-09-02: One Request-Scoped Startup Snapshot With Place-First Degradation
+
+Decision:
+Make `/api/ingestion/:city` the only event-inventory startup path in `App`. Load canonical Places synchronously, await permitted event collectors inside one server snapshot, and apply results only when city and request ID still match. Keep per-source health in shared state and default to Places whenever the active current-event view is empty.
+
+Reasoning:
+Independent SF ingestion and fresh-data effects could overwrite each other and hid delayed or failed collection behind generic copy. A request-scoped snapshot preserves one state owner while letting the product remain useful without credentials or current events.
+
+Tradeoffs:
+Cold refresh completion waits for the bounded collector timeout instead of returning a misleading fallback immediately. The UI may honestly show zero current events and disabled sources. Social pulse remains isolated because chatter is not canonical event evidence. Historical event fixtures remain stored for provenance but never count as current.
+
+Status:
+Accepted
+
+---
+
+## 2026-09-02: Remove Qualification Tags And The Mission Strip
+
+Decision:
+Do not render `verified`, `needs review`, `unverified`, or equivalent qualification statuses as tags in Local Buzz. Remove the numbered mission strip and its city sentence. Preserve source links, checked dates, catalog boundaries and specific operational safeguards in plain language.
+
+Reasoning:
+The labels add interface noise without helping a person choose a night. Specific evidence and actionable operating constraints communicate trust more clearly than internal qualification terminology.
+
+Tradeoffs:
+Internal status enums remain part of validation, fixtures and WebMCP data contracts for compatibility. The human interface no longer exposes those enum names, and the agent prompt is available through the existing handoff action rather than a persistent mission banner.
+
+Status:
+Accepted; supersedes the visible qualification-label portions of the Phase 1 and Phase 2 Place decisions.
+
+---
+
+## 2026-09-03: Use One Directly Editable Itinerary
+
+Decision:
+Maintain one canonical `currentPlan`. Explicit human and WebMCP build/add/remove/lock/unlock/repair operations validate first and then update it atomically. Search candidates remain discovery-only. Remove itinerary accept/reject state and tools. Preserve the separate DiscoveryLead catalog-review workflow.
+
+Reasoning:
+The itinerary itself is the shared human-agent artifact. An additional approval copy made selected stops ambiguous and slowed the core workflow. Atomic validation, persistent locks and visible direct controls keep changes reviewable without maintaining a second plan.
+
+Tradeoffs:
+Valid agent actions take effect immediately. Locks therefore become the hard protection boundary: agents cannot remove, replace, rebuild over or repair a locked stop, while a human may explicitly unlock or remove it. Failed operations must leave the current plan unchanged.
+
+Status:
+Accepted; supersedes “Stage Material Plan Changes” and the ghost-plan portion of “Make Agent Motion Explain Shared-State Changes.”

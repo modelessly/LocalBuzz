@@ -42,7 +42,7 @@ Agent calls:
 
 1. `search_happenings`
 2. `show_candidates`
-3. `stage_evening_plan`
+3. `build_evening_plan`
 
 Visible effects:
 

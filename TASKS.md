@@ -53,25 +53,31 @@
 
 - [x] `searchHappenings`
 - [x] `showCandidates`
-- [x] `stagePlan`
+- [x] `buildEveningPlan`
+- [x] `addHappeningStop`
+- [x] `addPlaceStop`
+- [x] `addCustomPlaceStop`
 - [x] `readCurrentPlan`
 - [x] `lockPlanStop`
+- [x] `unlockPlanStop`
+- [x] `removePlanStop`
 - [x] `replacePlanStop`
 - [x] `repairPlan`
-- [x] `acceptStagedChanges`
-- [x] `rejectStagedChanges`
 - [x] `applyLiveUpdate`
 
 ### WebMCP
 
 - [x] Register `search_happenings`.
 - [x] Register `show_candidates`.
-- [x] Register `stage_evening_plan`.
+- [x] Register `build_evening_plan`.
+- [x] Register `add_happening_stop`.
+- [x] Register `add_place_stop`.
+- [x] Register `add_custom_place_stop`.
 - [x] Register `read_current_plan`.
 - [x] Register `lock_plan_stop`.
+- [x] Register `unlock_plan_stop`.
+- [x] Register `remove_plan_stop`.
 - [x] Register `repair_plan`.
-- [x] Register `accept_staged_changes`.
-- [x] Register `reject_staged_changes`.
 - [x] Validate strict JSON schemas.
 - [x] Confirm each tool reuses application/domain logic.
 - [x] Confirm tools update visible UI.
@@ -152,4 +158,5 @@
 - [x] Phase 3 allowlisted multi-source ingestion contracts, parsers, adapters and last-good snapshots.
 - [ ] Add further permission-reviewed direct venue sources through the Phase 3 registry.
 - [x] Phase 4 WebMCP event/Place discovery leads with visible human review.
-- [ ] Phase 5 municipal permit radar and coverage-gap discovery through the lead frontier.
+- [x] Phase 5 deterministic coverage cube, targeted gap discovery and corroboration-required municipal radar through the lead frontier.
+- [x] Phase 6 bounded event graph, external coverage benchmarks, operational hardening and final deterministic data audit.

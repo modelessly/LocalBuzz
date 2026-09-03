@@ -70,3 +70,7 @@ Potential:
 - preserving separate nights per city only when accounts or deliberate local persistence exist
 
 Do not add production routing or ingestion infrastructure during the challenge.
+
+## Data-expansion consolidation
+
+The bounded six-phase data-expansion contracts are implemented through development operations. Production scheduling, paid-provider procurement, broader licensed source access, 30–50 event feeds per city and automatic canonical publication remain out of scope. Future source growth must use the existing registry, operational policy, review frontier and last-good boundary.

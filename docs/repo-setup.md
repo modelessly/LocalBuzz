@@ -64,3 +64,13 @@ Avoid adding operational files just to make the repository look complete.
 Phase 2's qualified Place snapshots live in `src/data/places.ts` and `src/data/placeExpansion.ts`. Keep discovery evidence, official-source evidence, numeric operational claims and verification state separate. Unknown hours or prices must stay unknown; do not roll old values forward.
 
 For Foursquare candidate generation, obtain a Foursquare Open Source Places extract through the official access process linked in `docs/data-sources.md`, create a city-bounded NDJSON file locally, and run `npm run places:import -- --city <city> --bounds <minLat,maxLat,minLng,maxLng> --input <file> --output <file>`. The command does not download the global dataset and does not update the UI catalog. Review its exclusions and duplicates before using official business sites to promote candidates into the checked-in snapshot.
+
+## Coverage and radar operations
+
+Use `npm run data:coverage` for a local deterministic inventory report. `npm run data:discover` requires the server-only `XAI_API_KEY` and runs only the explicitly selected weak cell. `npm run data:radar -- --city san-francisco` reads bounded public DataSF endpoints without a credential. Outputs live under the ignored `coverage/` directory and preserve matching last-good snapshots.
+
+Do not schedule gap discovery from the browser or run it once per user. Review target priority and cost first. Municipal records require a corroborating official event source before entering the DiscoveryLead frontier. See `docs/coverage.md`.
+
+## Phase 6 development credentials
+
+Copy only the credentials you are authorized to use into local `.env`; never use `VITE_` prefixes. `PREDICTHQ_API_KEY` enables its benchmark. `BANDSINTOWN_APP_ID` remains disabled unless organizational use has been approved and `BANDSINTOWN_TERMS_APPROVED=true`. Missing values are supported states and preserve last-good outputs. See `.env.example` and `docs/operations.md`.

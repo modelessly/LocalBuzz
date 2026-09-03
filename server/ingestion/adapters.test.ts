@@ -8,10 +8,12 @@ describe("sanctioned API adapters", () => {
   const vsSource = eventSourcesForCity("stockholm").find((source) => source.parser === "visit-sweden-linked-data")!;
 
   it("builds server-side Ticketmaster filters and degrades without a credential", async () => {
-    const url = new URL(buildTicketmasterUrl({ source: tmSource, apiKey: "secret", startDateTime: "2026-09-01T00:00:00Z", endDateTime: "2026-09-05T00:00:00Z", classifications: ["music"] }));
+    const url = new URL(buildTicketmasterUrl({ source: tmSource, apiKey: "secret", startDateTime: "2026-09-01T00:00:00.000Z", endDateTime: "2026-09-05T00:00:00.000Z", classifications: ["music"] }));
     expect(url.searchParams.get("apikey")).toBe("secret");
-    expect(url.searchParams.get("geoPoint")).toBe("37.7749,-122.4194");
+    expect(url.searchParams.get("latlong")).toBe("37.7749,-122.4194");
+    expect(url.searchParams.has("geoPoint")).toBe(false);
     expect(url.searchParams.get("classificationName")).toBe("music");
+    expect(url.searchParams.get("startDateTime")).toBe("2026-09-01T00:00:00Z");
     const missing = await collectTicketmaster({ source: tmSource, startDateTime: "2026-09-01T00:00:00Z", endDateTime: "2026-09-05T00:00:00Z" });
     expect(missing).toMatchObject({ status: "unavailable", happenings: [] });
   });

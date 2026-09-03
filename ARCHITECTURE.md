@@ -101,9 +101,6 @@ type LocalBuzzState = {
   candidateHappeningIds: string[]
 
   currentPlan: EveningPlan | null
-  stagedPlan: EveningPlan | null
-
-  stagedChanges: PlanChange[]
   liveUpdates: LiveUpdate[]
 
   selectedHappeningId?: string
@@ -138,7 +135,6 @@ See `docs/data-model.md`.
 ```ts
 type EveningPlan = {
   id: string
-  status: "staged" | "accepted"
   stops: PlanStop[]
   totalEstimatedCost: number
   startTime: string
@@ -157,21 +153,7 @@ type PlanStop = {
   plannedStart: string
   plannedEnd: string
   locked: boolean
-  status: "proposed" | "accepted" | "conflict" | "unavailable"
-}
-```
-
-### PlanChange
-
-```ts
-type PlanChange = {
-  id: string
-  type: "add" | "remove" | "replace" | "retime"
-  stopId?: string
-  before?: PlanStop
-  after?: PlanStop
-  reason?: string
-  status: "staged" | "accepted" | "rejected"
+  status: "active" | "conflict" | "unavailable"
 }
 ```
 
@@ -182,7 +164,10 @@ At minimum, implement:
 ```ts
 searchHappenings(filters)
 showCandidates(ids)
-stagePlan(input)
+buildEveningPlan(input)
+addHappeningStop(input)
+addPlaceStop(input)
+addCustomPlaceStop(input)
 readCurrentPlan()
 lockPlanStop(stopId)
 unlockPlanStop(stopId)
@@ -190,32 +175,18 @@ removePlanStop(stopId)
 replacePlanStop(stopId, replacementHappeningId)
 retimePlanStop(stopId, newStartTime)
 repairPlan(input)
-acceptStagedChanges()
-rejectStagedChanges()
 applyLiveUpdate(update)
 ```
 
 Not every function must become a WebMCP tool. Some are internal support operations.
 
-## Staged-change model
+## Direct-edit plan model
 
-Agent operations that materially change the user's night should be reviewable.
-
-Preferred sequence:
-
-1. agent calls plan-modifying tool
-2. application calculates a staged result
-3. UI renders differences
-4. user can accept or reject
-5. accepted state becomes canonical
-
-For hackathon scope, `stage_plan` and `repair_plan` should stage changes rather than silently committing them.
-
-Locking a stop may update immediately because it represents an explicit human constraint rather than a destructive agent action.
+`currentPlan` is the sole itinerary. Human and WebMCP mutations run the same validators and update it atomically; invalid operations leave it unchanged. Searches only change candidate visibility. Locks protect user intent from agent removal, replacement, rebuild and repair until explicitly unlocked. A human may explicitly remove a locked stop.
 
 ## WebMCP registration
 
-The prototype uses a robust static set of fifteen tools: the original eight event/plan tools, five Place tools, and two discovery-lead proposal tools. Dynamic registration is deliberately deferred.
+The prototype uses a robust static set of sixteen discovery, acquisition and direct-plan tools. Dynamic registration is deliberately deferred.
 
 Example:
 
@@ -223,7 +194,10 @@ Example:
 
 - `search_happenings`
 - `show_candidates`
-- `stage_evening_plan`
+- `build_evening_plan`
+- `add_happening_stop`
+- `add_place_stop`
+- `add_custom_place_stop`
 
 ### After a plan exists
 
@@ -231,14 +205,9 @@ Add:
 
 - `read_current_plan`
 - `lock_plan_stop`
+- `unlock_plan_stop`
+- `remove_plan_stop`
 - `repair_plan`
-
-### When staged changes exist
-
-Add:
-
-- `accept_staged_changes`
-- `reject_staged_changes`
 
 The current official `document.modelContext.registerTool()` API is feature-detected. Each registration uses a shared `AbortSignal`, so React cleanup unregisters the exact tools owned by the component lifecycle. Browsers without WebMCP keep the complete human workflow.
 
@@ -254,7 +223,7 @@ For the contest implementation:
 
 The checked-in fixtures have 60 occurrences across Stockholm and San Francisco and validate city ownership, unique IDs, dates, coordinates, categories, prices, currencies, and provenance. No generalized scraping framework.
 
-Each city definition owns its inventory, currency, time zone, map origin, mission, demo plan, and search defaults. A city switch creates a fresh city-scoped state while preserving only the WebMCP connection status. This prevents cross-city plans without introducing routing or a backend.
+Each city definition owns its inventory, currency, time zone, map origin, agent prompt, demo plan, and search defaults. A city switch creates a fresh city-scoped state while preserving only the WebMCP connection status. This prevents cross-city plans without introducing routing or a backend.
 
 No ingestion pipeline unless a source can be integrated quickly and reliably.
 
@@ -268,7 +237,7 @@ The route supports `mode=broad` and `mode=curated`; curated handle groups live i
 
 `worker/index.ts` also handles `GET /api/events/san-francisco`. A server-side xAI Web Search collector discovers current scheduled events, while a local validator enforces exact times, physical San Francisco coordinates, safe source URLs, temporal integrity, and minimum confidence. Empty or unavailable live collection falls back to a bounded set of directly verified official-calendar records with a fixed verification timestamp.
 
-On city selection, `src/lib/sanFranciscoFresh.ts` loads both routes concurrently and adapts their accepted records into canonical `Happening` values. `LocalBuzzActions.replaceCityHappenings` updates the active city's shared inventory without rewriting staged plan references; expired records remain available only as preserved snapshots and are excluded from current result IDs. Pulse records without a resolvable known venue are omitted.
+On city selection, `src/lib/sanFranciscoFresh.ts` loads both routes concurrently and adapts their accepted records into canonical `Happening` values. `LocalBuzzActions.replaceCityHappenings` updates the active city's shared inventory without rewriting current-plan references; expired records remain available only as preserved snapshots and are excluded from current result IDs. Pulse records without a resolvable known venue are omitted.
 
 This collector is deliberately disconnected from `LocalBuzzState`, the cards, and WebMCP tools until signal quality has been evaluated independently.
 
@@ -276,7 +245,7 @@ This collector is deliberately disconnected from `LocalBuzzState`, the cards, an
 
 WebMCP motion is a derived presentation channel, not a second source of product state. `registerWebMcp` wraps page-defined tool execution with typed lifecycle events: received, applying, and completed or failed. React consumes those events to render the fixed-width command bay and four-strand Intent Loom; human UI actions continue to call the same domain operations without emitting agent-origin motion. The first `received` event is emitted before the short presentation handoff, so the page visibly responds as soon as WebMCP execution starts without inventing an indeterminate thinking state.
 
-Ghost-plan and repair motion derive from canonical `stagedPlan` and `stagedChanges` data. A staged proposal remains visually offset until accepted or rejected. A repair animates only `replace` changes, while its `before` and `after` values produce a persistent timeline and map scar until review ends. Locked and unaffected stops remain anchored. Map event signals are separately derived from canonical timing, availability, and source-verification timestamps; they never claim live activity for unavailable or merely stale records. Motion never delays or changes domain validation, plan calculations, acceptance, or repair rules beyond a short 180ms visual handoff before the shared-state mutation.
+Plan arrival motion derives from real WebMCP lifecycle events and the resulting canonical `currentPlan`. Repair updates that plan directly while locked and unaffected stops remain anchored. Map event signals are separately derived from canonical timing, availability and source-verification timestamps; they never claim live activity for unavailable or merely stale records. Motion never delays or changes validation, plan calculations or repair rules beyond a short 180ms visual handoff before the shared-state mutation.
 
 All effects degrade to effectively instantaneous state changes under `prefers-reduced-motion: reduce`.
 
@@ -294,7 +263,7 @@ Shared plan summarization resolves cost by stop kind and multiplies the per-pers
 
 `stageHappeningStop`, `stagePlaceStop`, and `stageCustomPlace` all append through the same staged-plan validator used by human controls. Locks, removal, acceptance and rejection are union-generic. `applyLiveUpdate`, event replacement and `repairPlan` narrow to happening stops; mixed-plan neighbor times still constrain the repair, and locked/unaffected place stops are copied unchanged.
 
-Map routes resolve coordinates for every stop kind. Canonical place pins use the shared Place catalog; custom stops use their embedded coordinates and a dashed unverified treatment. Timeline labels expose event versus place, purpose, canonical versus unverified, staged versus accepted, locks, disruptions and repairs. Agent motion remains derived only from tool lifecycle and shared plan state.
+Map routes resolve coordinates for every stop kind. Canonical place pins use the shared Place catalog; custom stops use their embedded coordinates and a dashed treatment. Timeline labels expose event versus place, purpose, custom-place identity, staged versus accepted, locks, disruptions and repairs without qualification-status tags. Agent motion remains derived only from tool lifecycle and shared plan state.
 
 ## Phase 2 Place qualification architecture
 
@@ -372,3 +341,27 @@ Acceptance requirement:
 `LocalBuzzState.discoveryLeads` is a review-only frontier beside canonical `happenings` and `places`. `propose_event_from_url` and `propose_place_from_url` accept structured agent-read facts plus public evidence URLs and call the same `LocalBuzzActions` methods used by the review UI. Local Buzz performs no arbitrary URL fetch.
 
 Proposal validation blocks non-HTTPS, credentialed, local, private, link-local, oversized and control-character inputs. Missing fields, duplicate matches and insufficient provenance remain visible on a provisional lead. Only `acceptDiscoveryLead` can invoke canonical validators and append inventory; rejection changes no inventory; a Place may instead be staged through the existing unverified custom-stop validator.
+
+## Phase 5 demand-shaped discovery
+
+`server/discovery` adds a pure coverage cube beside, not inside, product state. It classifies canonical future events across city, configured neighborhood, category, local evening window, city-currency price band and lead-time band. The report also derives stale inventory, overrepresented categories, neighborhood/late/inexpensive gaps and operational Place-to-event corridor gaps. `npm run data:coverage` writes stable ordered JSON and a concise terminal report.
+
+Ranked weak cells become bounded `CoverageSearchTarget` values. `npm run data:discover` runs one explicit target through a server-only xAI Web Search, validates at most ten results through the Phase 4 discovery builder and emits `DiscoveryLead` records rather than `Happening`. Matching searches, including valid empty searches, are cached for six hours; failures and missing credentials retain matching last-good leads. The browser never starts a paid gap search automatically.
+
+Municipal adapters retain DataSF closure/PermitSF facts in `MunicipalRadarSnapshot`. They have no canonical conversion. A deterministic suggested query requests independent evidence, and `corroborateMunicipalRecord` requires a separate official/venue/ticket source that identifies the municipal record before producing a discovery lead. Empty/failed municipal refreshes preserve per-source last-good records. The Stockholm official land-permit source is registered but disabled until its credentialed collection/field contract is verified.
+
+## Phase 6 graph, benchmarks and operations
+
+`server/eventGraph` builds a bounded relationship graph only from explicitly trusted canonical happenings. Stable event, venue, organizer, performer and ticket-platform identities retain provenance on every edge. Expansion is capped by depth, records, provider queries, refresh interval and an explicit domain allowlist; cycles and uncertain identities are rejected or left for review. Related official event facts can produce a normal `DiscoveryLead`, never a `Happening`.
+
+`server/benchmarks` isolates PredictHQ and Bandsintown results in `BenchmarkSnapshot` records with `benchmarkOnly: true`. Comparison measures overlap, credible provider-only candidates, weak categories and incremental yield per request. Missing credentials, provider failures and empty/invalid refreshes preserve matching last-good records. Bandsintown requires approved organizational access and trusted performer identities; Songkick remains disabled without licensed access.
+
+`server/operations` owns refresh/quota/retention/licensing policy and the deterministic final audit. Source raw payloads are either not retained or cache-only, text reuse is facts-only unless provider terms govern it, and images are prohibited without explicit permission. Immediately before plan acceptance, the shared domain action rechecks event cancellation/sellout and canonical Place hours, kitchen cutoff, reservation and operational completeness; uncertainty is returned as warnings.
+
+## P0 unified city startup and observable inventory
+
+`createInitialState` synchronously loads the active city's complete canonical Place snapshot plus any checked-in event occurrences that are still unexpired. `refreshCityData` is the only browser startup owner. It assigns a request ID, marks permitted registry sources `refreshing`, awaits the single `/api/ingestion/:city` snapshot, and applies it through `LocalBuzzActions`. A result is ignored when its request ID is stale or its city is no longer active.
+
+The ingestion endpoint awaits all permitted collectors, including the server-only SF xAI scheduled-event collector, and orders results by registry order before deterministic deduplication. Social pulse remains non-canonical and is not converted into confirmed events. Empty, malformed, timed-out and failed refreshes preserve unexpired last-good records; expired records remain in provenance history but are excluded from current/search views.
+
+`LocalBuzzState.eventInventory` is shared by UI and WebMCP. It records the active request, current/retained/expired totals and per-source fresh/retained/unavailable/disabled/invalid/refreshing state with safe counts and diagnostics. Inventory refresh never stages, accepts, rejects or edits a plan.

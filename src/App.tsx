@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Check, ChevronDown, LocateFixed, RefreshCw, Search } from "lucide-react";
-import { ModelessButton, ModelessPanel, ModelessSearchField, SignalBadge } from "@modeless/design-system";
+import { CalendarDays, Check, ChevronDown, LocateFixed, Search } from "lucide-react";
+import { ModelessButton, ModelessPanel, ModelessSearchField } from "@modeless/design-system";
 import { AgentProgress, IntentLoom } from "./components/AgentMotion";
 import { CityMap } from "./components/CityMap";
 import { CityConditions } from "./components/CityConditions";
@@ -8,21 +8,21 @@ import { EveningTimeline } from "./components/EveningTimeline";
 import { HappeningCard } from "./components/HappeningCard";
 import { PlaceCard } from "./components/PlaceCard";
 import { DiscoveryReview } from "./components/DiscoveryReview";
+import { SourceStatus } from "./components/SourceStatus";
 import { cityIds, getCityDefinition } from "./data/cities";
 import { createInitialState, LocalBuzzActions } from "./domain/store";
 import type { CityId, DomainResult, LocalBuzzState, PlaceKind, PlacePurpose, PlaceSearchFilters } from "./domain/types";
 import {
   getSearchWindow,
   happeningSectionTitle,
-  initialPopulatedTimeSelection,
   localDate,
   localDateTimeToIso,
   shiftIsoDate,
   timeSelectionLabel,
   type TimeSelection,
 } from "./lib/timeSearch";
-import { loadSanFranciscoFreshData } from "./lib/sanFranciscoFresh";
-import { describeCityEventSnapshot, loadCityEventSnapshot } from "./lib/cityEvents";
+import { refreshCityData } from "./lib/cityStartup";
+import { browserTitle, candidateReasonLead, inventoryCountLabel, inventorySummaryLabel, placeCandidateSummary } from "./lib/presentation";
 import { registerWebMcp } from "./webmcp/register";
 import type { AgentActivity } from "./webmcp/activity";
 
@@ -50,11 +50,10 @@ export function App() {
   const city = getCityDefinition(state.activeCityId);
   const [query, setQuery] = useState(city.searchDefaults.query);
   const [timeSelection, setTimeSelection] = useState<TimeSelection>("now");
-  const timeSelectionRef = useRef(timeSelection);
-  timeSelectionRef.current = timeSelection;
+  const refreshSequenceRef = useRef(0);
   const [selectedDate, setSelectedDate] = useState(() => localDate(new Date(), city.timeZone));
   const [feedback, setFeedback] = useState<string>();
-  const [discoveryMode, setDiscoveryMode] = useState<"events" | "places">("events");
+  const discoveryMode = state.discoveryMode;
   const [customPlaceName, setCustomPlaceName] = useState("");
   const [customPlacePrice, setCustomPlacePrice] = useState("");
   const [customPlaceDuration, setCustomPlaceDuration] = useState("60");
@@ -63,8 +62,7 @@ export function App() {
   const [agentActivity, setAgentActivity] = useState<AgentActivity | null>(null);
   const cityMenuRef = useRef<HTMLDetailsElement>(null);
   const timeMenuRef = useRef<HTMLDetailsElement>(null);
-  const plan = state.stagedPlan ?? state.currentPlan;
-  const canRepair = Boolean(plan?.stops.some((stop) => stop.kind === "happening" && stop.status === "unavailable"));
+  const plan = state.currentPlan;
   const visibleHappenings = useMemo(
     () => state.visibleHappeningIds
       .map((id) => state.happenings.find((item) => item.id === id))
@@ -92,67 +90,15 @@ export function App() {
   ), [actions, reportAgentActivity]);
 
   useEffect(() => {
-    const cityId = state.activeCityId;
-    const controller = new AbortController();
-    void loadCityEventSnapshot(cityId, controller.signal)
-      .then((snapshot) => {
-        if (controller.signal.aborted || stateRef.current.activeCityId !== cityId) return;
-        const message = describeCityEventSnapshot(snapshot);
-        actions.replaceCityHappenings(cityId, snapshot.happenings, message, new Date());
-        setFeedback(message);
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) setFeedback(error instanceof Error ? `Canonical event refresh unavailable: ${error.message}. Existing inventory retained.` : "Canonical event refresh unavailable. Existing inventory retained.");
-      });
-    return () => controller.abort();
-  }, [actions, state.activeCityId]);
+    document.title = browserTitle(city.name);
+  }, [city.name]);
 
   useEffect(() => {
-    if (state.activeCityId !== "san-francisco") return;
+    const cityId = state.activeCityId;
     const controller = new AbortController();
-    const knownPlaces = getCityDefinition("san-francisco").happenings;
-    setFeedback("Refreshing source-backed San Francisco events and live pulse…");
-    void loadSanFranciscoFreshData(knownPlaces, controller.signal)
-      .then((result) => {
-        if (controller.signal.aborted || stateRef.current.activeCityId !== "san-francisco") return;
-        const refreshedAt = new Date();
-        let message = `${result.scheduledCount} fresh scheduled events · ${result.liveSignalCount} mapped live signals loaded into shared state.`;
-        actions.replaceCityHappenings("san-francisco", result.happenings, message, refreshedAt);
-
-        const suggestedSelection = initialPopulatedTimeSelection(
-          result.happenings,
-          getCityDefinition("san-francisco").timeZone,
-          refreshedAt,
-        );
-        if (timeSelectionRef.current === "now" && suggestedSelection === "tomorrow") {
-          const tomorrowWindow = getSearchWindow(
-            "tomorrow",
-            localDate(refreshedAt, getCityDefinition("san-francisco").timeZone),
-            getCityDefinition("san-francisco").timeZone,
-            refreshedAt,
-          );
-          const tomorrow = actions.searchHappenings({
-            startAfter: tomorrowWindow.startAfter,
-            endBefore: tomorrowWindow.endBefore,
-            maxResults: stateRef.current.happenings.length,
-          });
-          if (tomorrow.ok && tomorrow.count > 0) {
-            setTimeSelection("tomorrow");
-            actions.showListings(
-              tomorrow.happenings.map((item) => item.id),
-              `Nothing remains tonight. ${tomorrow.count} happenings are visible for tomorrow.`,
-            );
-            message = `Nothing remains tonight. Showing ${tomorrow.count} happenings tomorrow.`;
-          }
-        }
-        setFeedback(message);
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setFeedback(error instanceof Error
-          ? `Fresh San Francisco data unavailable: ${error.message}`
-          : "Fresh San Francisco data unavailable.");
-      });
+    const refreshId = `${cityId}-${++refreshSequenceRef.current}`;
+    setFeedback(undefined);
+    void refreshCityData({ cityId, refreshId, actions, signal: controller.signal });
     return () => controller.abort();
   }, [actions, state.activeCityId]);
 
@@ -160,20 +106,6 @@ export function App() {
     if (result.ok) setFeedback(success);
     else setFeedback(`${result.code}: ${result.message}`);
     return result.ok;
-  };
-
-  const stageDemo = () => {
-    actions.showCandidates(city.demoHappeningIds, `Local options for tonight in ${city.name}`);
-    handleResult(
-      actions.stagePlan(
-        city.demoInitialPlanIds.map((happeningId) => ({
-          happeningId,
-          plannedStart: city.demoStarts[happeningId],
-        })),
-        `A distinctive ${city.name} night that finishes before midnight`,
-      ),
-      "Night staged. Lock what you love, reject what you don’t.",
-    );
   };
 
   const copyAgentPrompt = async () => {
@@ -202,27 +134,10 @@ export function App() {
     const result = actions.searchHappenings({
       startAfter: searchWindow.startAfter,
       endBefore: searchWindow.endBefore,
+      activeAt: searchWindow.activeAt,
       maxResults: state.happenings.length,
     });
     if (result.ok) {
-      if (selection === "later" && result.count === 0) {
-        const tomorrowWindow = getSearchWindow("tomorrow", date, city.timeZone);
-        const tomorrow = actions.searchHappenings({
-          startAfter: tomorrowWindow.startAfter,
-          endBefore: tomorrowWindow.endBefore,
-          maxResults: stateRef.current.happenings.length,
-        });
-        if (tomorrow.ok && tomorrow.count > 0) {
-          const noun = tomorrow.count === 1 ? "happening" : "happenings";
-          setTimeSelection("tomorrow");
-          actions.showListings(
-            tomorrow.happenings.map((item) => item.id),
-            `Nothing is listed later today. ${tomorrow.count} ${noun} ${tomorrow.count === 1 ? "is" : "are"} visible for tomorrow.`,
-          );
-          setFeedback(`Nothing is listed later today. Showing ${tomorrow.count} ${noun} tomorrow.`);
-          return;
-        }
-      }
       actions.showListings(
         result.happenings.map((item) => item.id),
         `Full ${context} listing restored.`,
@@ -230,6 +145,23 @@ export function App() {
       setFeedback(`${result.count} happenings shown for ${context}.`);
     } else handleResult(result);
   };
+
+  useEffect(() => {
+    if (state.eventInventory.refreshing || state.candidateHappeningIds.length) return;
+    const searchWindow = getSearchWindow(timeSelection, selectedDate, city.timeZone);
+    const result = actions.searchHappenings({
+      startAfter: searchWindow.startAfter,
+      endBefore: searchWindow.endBefore,
+      activeAt: searchWindow.activeAt,
+      maxResults: state.happenings.length,
+    });
+    if (result.ok) {
+      actions.showListings(
+        result.happenings.map((item) => item.id),
+        `${result.count} happenings match ${searchContextFor(timeSelection, selectedDate)}.`,
+      );
+    }
+  }, [actions, city.timeZone, selectedDate, state.activeCityId, state.candidateHappeningIds.length, state.eventInventory.generatedAt, state.eventInventory.refreshing, state.happenings.length, timeSelection]);
 
   const search = () => {
     if (!query.trim()) {
@@ -241,6 +173,7 @@ export function App() {
       query,
       startAfter: searchWindow.startAfter,
       endBefore: searchWindow.endBefore,
+      activeAt: searchWindow.activeAt,
       maxPrice: city.searchDefaults.maxPrice,
       near: city.constraints.startLocation,
       maxDistanceKm: city.searchDefaults.maxDistanceKm,
@@ -250,6 +183,7 @@ export function App() {
       actions.showCandidates(
         result.happenings.map((item) => item.id),
         `Matches “${query}” near ${city.constraints.startLocation.label}`,
+        "human",
       );
       setFeedback(`${result.count} candidates surfaced on the map.`);
     } else handleResult(result);
@@ -257,7 +191,7 @@ export function App() {
 
   const rejectCandidate = (id: string) => {
     const ids = state.candidateHappeningIds.filter((candidateId) => candidateId !== id);
-    handleResult(actions.showCandidates(ids, state.candidateReason), "Candidate removed by the human.");
+    handleResult(actions.showCandidates(ids, state.candidateReason, state.candidateReasonOrigin ?? "human"), "Candidate removed by the human.");
   };
 
   const swapIn = (happeningId: string) => {
@@ -272,26 +206,7 @@ export function App() {
     );
   };
 
-  const disrupt = () => {
-    const target = plan?.stops.find((stop) => stop.kind === "happening" && !stop.locked);
-    if (!target || target.kind !== "happening") {
-      setFeedback("Every stop is locked; the simulation will not override a human decision.");
-      return;
-    }
-    handleResult(
-      actions.applyLiveUpdate({
-        id: `demo-update-${state.liveUpdates.length + 1}`,
-        happeningId: target.happeningId,
-        availability: "sold_out",
-        label: "Demo live-status simulation",
-        source: "demo_simulation",
-        appliedAt: new Date().toISOString(),
-      }),
-      "Simulated venue update applied and clearly labeled.",
-    );
-  };
-
-  const stagePlace = (placeId: string, purpose: PlacePurpose) => {
+  const addPlace = (placeId: string, purpose: PlacePurpose) => {
     const place = state.places.find((item) => item.id === placeId);
     if (!place) return;
     const duration = place.typicalVisitDurationMinutes * 60_000;
@@ -301,29 +216,29 @@ export function App() {
     const proposedMs = purpose === "dinner" || purpose === "quick_bite"
       ? (Number.isFinite(earliest) ? (earliest as number) - duration - 30 * 60_000 : Date.parse(localDateTimeToIso(selectedDate, fallbackTime, city.timeZone)))
       : (latest ? latest + 30 * 60_000 : Date.parse(localDateTimeToIso(selectedDate, fallbackTime, city.timeZone)));
-    const result = actions.stagePlaceStop({ placeId, purpose, plannedStart: new Date(proposedMs).toISOString() }, `Human added ${purpose.replace("_", " ")}`);
-    if (result.ok) setFeedback(`${place.name} staged as ${purpose.replace("_", " ")}. ${result.warnings.join(" ")}`.trim());
+    const result = actions.addPlaceStop({ placeId, purpose, plannedStart: new Date(proposedMs).toISOString() }, `Human added ${purpose.replace("_", " ")}`);
+    if (result.ok) setFeedback(`${place.name} added as ${purpose.replace("_", " ")}. ${result.warnings.join(" ")}`.trim());
     else handleResult(result);
   };
 
-  const stageEvent = (happeningId: string) => {
+  const addEvent = (happeningId: string) => {
     const happening = state.happenings.find((item) => item.id === happeningId);
     if (!happening) return;
-    handleResult(actions.stageHappeningStop({ happeningId, plannedStart: happening.timing.start }, "Human added an event"), `${happening.title} staged.`);
+    handleResult(actions.addHappeningStop({ happeningId, plannedStart: happening.timing.start }, "Human added an event"), `${happening.title} added.`);
   };
 
-  const stageCustomPlace = () => {
+  const addCustomPlace = () => {
     const plannedStart = localDateTimeToIso(selectedDate, customPlacePurpose === "dinner" ? "18:00:00" : "21:30:00", city.timeZone);
-    const result = actions.stageCustomPlace({
+    const result = actions.addCustomPlaceStop({
       name: customPlaceName, purpose: customPlacePurpose, plannedStart,
       location: { ...city.constraints.startLocation, address: "User-provided location", neighborhood: city.constraints.startLocation.label },
       typicalVisitDurationMinutes: Number(customPlaceDuration), pricePerPerson: Number(customPlacePrice), currency: city.currency,
       availableFrom: localDateTimeToIso(selectedDate, "17:00:00", city.timeZone),
       availableUntil: localDateTimeToIso(selectedDate, "23:59:00", city.timeZone),
-      note: "Human-entered place; hours, price and location are explicit unverified assumptions.",
-    }, "Human added an unverified custom place");
+      note: "Human-entered place; hours, price and location are explicit assumptions.",
+    }, "Human added a custom place");
     if (result.ok) {
-      setFeedback(`${customPlaceName} staged and visibly marked unverified. ${result.warnings.join(" ")}`);
+      setFeedback(`${customPlaceName} added as a custom place. ${result.warnings.join(" ")}`);
       setCustomPlaceName("");
     } else handleResult(result);
   };
@@ -342,17 +257,6 @@ export function App() {
     const result = actions.searchPlaces(filters);
     if (result.ok) actions.showPlaceListings(result.places.map((place) => place.id), `${result.count} qualified places match the active filters.`);
     else handleResult(result);
-  };
-
-  const repair = () => {
-    handleResult(
-      actions.repairPlan({
-        reason: "Selected event became unavailable; preserve the rest of the night",
-        preserveLockedStops: true,
-        replacementHappeningIds: city.repairHappeningIds,
-      }),
-      "Minimum repair staged. Locked and unaffected stops remain intact.",
-    );
   };
 
   const switchCity = (cityId: CityId) => {
@@ -456,19 +360,11 @@ export function App() {
 
       <IntentLoom activity={agentActivity} />
 
-      <section className="mission-strip" aria-label="Current mission">
-        <span>MISSION 01</span>
-        <p>“{city.mission}”</p>
-        <ModelessButton variant="ghost" size="sm" onClick={() => { actions.resetDemo(); setFeedback("Demo reset."); }}>
-          <RefreshCw aria-hidden="true" size={14} /> Reset
-        </ModelessButton>
-      </section>
-
       <div className="workspace">
         <ModelessPanel
           className="map-panel"
           title={`${city.name} in reach`}
-          actions={<span className="inventory-count">{visibleHappenings.length + visiblePlaces.length} in view · {state.happenings.length} events · {state.places.length} places</span>}
+          actions={<span className="inventory-count">{inventoryCountLabel(visibleHappenings.length, visiblePlaces.length, state.eventInventory.currentCount, state.places.length)}</span>}
           motion="subtle"
         >
           <CityMap
@@ -486,7 +382,6 @@ export function App() {
             selectedId={state.selectedHappeningId}
             selectedPlaceId={state.selectedPlaceId}
             plan={plan}
-            changes={state.stagedChanges}
             onSelect={(id) => actions.selectHappening(id)}
             onSelectPlace={(id) => actions.selectPlace(id)}
           />
@@ -500,21 +395,13 @@ export function App() {
         >
           <EveningTimeline
             currentPlan={state.currentPlan}
-            stagedPlan={state.stagedPlan}
-            changes={state.stagedChanges}
             happenings={state.happenings}
             places={state.places}
-            onStageDemo={stageDemo}
             onCopyAgentPrompt={copyAgentPrompt}
             webMcpStatus={state.webMcp}
-            onAccept={() => handleResult(actions.acceptStagedChanges(), "Night accepted.")}
-            onReject={() => handleResult(actions.rejectStagedChanges(), "Staged changes rejected.")}
             onLock={(id) => handleResult(actions.lockPlanStop(id), "Human lock recorded.")}
             onUnlock={(id) => handleResult(actions.unlockPlanStop(id), "Stop unlocked.")}
-            onRemove={(id) => handleResult(actions.removePlanStop(id), "Stop removed by the human.")}
-            onDisrupt={disrupt}
-            onRepair={repair}
-            canRepair={canRepair}
+            onRemove={(id) => handleResult(actions.removePlanStop(id, "human"), "Stop removed by the human.")}
             timeZone={city.timeZone}
             agentActivity={agentActivity}
           />
@@ -524,8 +411,8 @@ export function App() {
       <section className="activity-bar" aria-live="polite">
         <span className="activity-bar__pulse" />
         <strong>Shared state</strong>
-        <p>{feedback ?? state.activityMessage}</p>
-        {state.liveUpdates.length ? <SignalBadge variant="warning">demo simulation active</SignalBadge> : null}
+        <p>{inventorySummaryLabel(state.eventInventory, state.places.length)} {feedback ?? state.activityMessage}</p>
+        <SourceStatus inventory={state.eventInventory} />
       </section>
 
       <DiscoveryReview
@@ -539,7 +426,7 @@ export function App() {
             plannedStart,
             availableFrom: localDateTimeToIso(selectedDate, "17:00:00", city.timeZone),
             availableUntil: localDateTimeToIso(shiftIsoDate(selectedDate, 1), "00:00:00", city.timeZone),
-          }), "Place retained as a staged unverified custom stop.");
+          }), "Place retained as a custom stop outside the catalog.");
         }}
       />
 
@@ -548,8 +435,8 @@ export function App() {
           <div>
             <h2>{discoveryMode === "events" ? happeningTitle : "Places for your night"}</h2>
             <div className="discovery-tabs" role="tablist" aria-label="Discover events or places">
-              <button type="button" role="tab" aria-selected={discoveryMode === "events"} onClick={() => setDiscoveryMode("events")}>Events</button>
-              <button type="button" role="tab" aria-selected={discoveryMode === "places"} onClick={() => { setDiscoveryMode("places"); actions.showPlaceListings(state.places.map((item) => item.id)); }}>Places</button>
+              <button type="button" role="tab" aria-selected={discoveryMode === "events"} onClick={() => actions.showListings(state.visibleHappeningIds)}>Events</button>
+              <button type="button" role="tab" aria-selected={discoveryMode === "places"} onClick={() => actions.showPlaceListings(state.places.map((item) => item.id))}>Places</button>
             </div>
           </div>
           {discoveryMode === "events" ? <div className="search-controls">
@@ -567,7 +454,16 @@ export function App() {
             <ModelessButton variant="outline" onClick={search}><Search aria-hidden="true" size={15} /> Search {searchContext}</ModelessButton>
           </div> : null}
         </div>
-        {state.candidateReason ? <p className="candidate-reason">Agent surfaced: {state.candidateReason}</p> : null}
+        {state.candidateReason ? (
+          <div className="candidate-reason">
+            <span>{discoveryMode === "places" && state.candidatePlaceIds.length
+              ? `${placeCandidateSummary(state.candidatePlaceIds.length, state.places.length, state.candidateReasonOrigin)} ${state.candidateReason}`
+              : `${candidateReasonLead(state.candidateReasonOrigin)}: ${state.candidateReason}`}</span>
+            {discoveryMode === "places" && state.candidatePlaceIds.length < state.places.length ? (
+              <button type="button" onClick={() => actions.showPlaceListings(state.places.map((item) => item.id), `All ${state.places.length} canonical Places restored.`)}>Show all places</button>
+            ) : null}
+          </div>
+        ) : null}
         {discoveryMode === "places" ? (
           <div className="place-filters" aria-label="Filter places">
             <label>Purpose<select value={placeFilterState.purpose} onChange={(event) => applyPlaceFilters({ ...placeFilterState, purpose: event.target.value as PlacePurpose | "" })}><option value="">All</option><option value="dinner">Dinner</option><option value="quick_bite">Quick bite</option><option value="drinks">Drinks</option><option value="late_drinks">Late drinks</option></select></label>
@@ -581,15 +477,15 @@ export function App() {
         ) : null}
         {discoveryMode === "places" ? (
           <details className="custom-place-form">
-            <summary>Add a custom place <span>Always marked unverified</span></summary>
+            <summary>Add a custom place</summary>
             <div>
               <label>Name<input value={customPlaceName} onChange={(event) => setCustomPlaceName(event.target.value)} placeholder="Place name" /></label>
               <label>Purpose<select value={customPlacePurpose} onChange={(event) => setCustomPlacePurpose(event.target.value as PlacePurpose)}><option value="dinner">Dinner</option><option value="quick_bite">Quick bite</option><option value="drinks">Drinks</option><option value="late_drinks">Late drinks</option></select></label>
               <label>Per person ({city.currency})<input type="number" min="0" value={customPlacePrice} onChange={(event) => setCustomPlacePrice(event.target.value)} /></label>
               <label>Minutes<input type="number" min="15" value={customPlaceDuration} onChange={(event) => setCustomPlaceDuration(event.target.value)} /></label>
-              <ModelessButton variant="outline" size="sm" disabled={!customPlaceName.trim() || customPlacePrice === ""} onClick={stageCustomPlace}>Stage unverified place</ModelessButton>
+              <ModelessButton variant="outline" size="sm" disabled={!customPlaceName.trim() || customPlacePrice === ""} onClick={addCustomPlace}>Add custom place</ModelessButton>
             </div>
-            <p>Uses the current start location and an explicit 17:00–23:59 availability assumption for the selected date. Review before accepting.</p>
+            <p>Uses the current start location and an explicit 17:00–23:59 availability assumption for the selected date.</p>
           </details>
         ) : null}
         <div className={discoveryMode === "events" ? "happening-grid" : "place-grid"}>
@@ -605,20 +501,17 @@ export function App() {
               onSelect={() => actions.selectHappening(happening.id)}
               onSwap={() => swapIn(happening.id)}
               onReject={() => rejectCandidate(happening.id)}
-              onStage={() => stageEvent(happening.id)}
+              onAdd={() => addEvent(happening.id)}
             />
           )) : visiblePlaces.map((place) => (
             <PlaceCard key={place.id} place={place} timeZone={city.timeZone} candidate={state.candidatePlaceIds.includes(place.id)} selected={state.selectedPlaceId === place.id}
               inPlan={Boolean(plan?.stops.some((stop) => stop.kind === "place" && stop.placeId === place.id))}
-              onSelect={() => actions.selectPlace(place.id)} onStage={(purpose) => stagePlace(place.id, purpose)} />
+              onSelect={() => actions.selectPlace(place.id)} onAdd={(purpose) => addPlace(place.id, purpose)} />
           ))}
         </div>
       </section>
 
-      <footer className="data-disclosure">
-        <strong>Prototype data</strong>
-        <span>{city.snapshotLabel} · {state.places.length} official-source place records with field-level provenance · Local Buzz mood/duration enrichment · clearly labeled deterministic availability simulation</span>
-      </footer>
+      <footer className="data-disclosure">Local Buzz | 2026</footer>
     </main>
   );
 }

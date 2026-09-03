@@ -36,7 +36,7 @@ describe("discovery lead validation", () => {
     expect(buildEventLead({ ...eventInput, fields: { ...eventInput.fields, commerce: { ...eventInput.fields.commerce, bookingUrl: "https://10.0.0.2/tickets" } } }, "stockholm", [], new Date("2026-09-01T12:00:00Z"))).toMatchObject({ ok: false, code: "UNSAFE_INPUT" });
   });
 
-  it("stages missing and duplicate warnings without publishing canonically", () => {
+  it("records missing and duplicate warnings without publishing canonically", () => {
     const existing = getCityDefinition("stockholm").happenings;
     const missing = buildEventLead({ ...eventInput, fields: { title: "Incomplete" } }, "stockholm", existing, new Date("2026-09-01T12:00:00Z"));
     expect(missing).toMatchObject({ ok: true, lead: { verificationStatus: "needs_review", issues: expect.arrayContaining(["MISSING_DATE", "MISSING_LOCATION"]) } });
@@ -52,7 +52,7 @@ describe("discovery lead validation", () => {
     expect(buildEventLead({ ...eventInput, fields: { ...eventInput.fields, description: "x".repeat(5001) } }, "stockholm", [], new Date("2026-09-01T12:00:00Z"))).toMatchObject({ ok: false, code: "UNSAFE_INPUT" });
   });
 
-  it("keeps proposals staged, accepts valid records, rejects leads, and retains an insufficient Place as custom", () => {
+  it("reviews proposals separately and adds an insufficient Place directly as custom", () => {
     const { actions, read } = setup();
     const proposed = actions.proposeEventLead(eventInput);
     expect(proposed.ok).toBe(true);
@@ -75,7 +75,7 @@ describe("discovery lead validation", () => {
     if (!place.ok) throw new Error("expected place proposal");
     expect(actions.acceptDiscoveryLead(place.lead.id)).toMatchObject({ ok: false, code: "INSUFFICIENT_PROVENANCE" });
     expect(actions.keepDiscoveryLeadAsCustom(place.lead.id, { purpose: "drinks", plannedStart: "2026-09-05T20:00:00+02:00", availableFrom: "2026-09-05T17:00:00+02:00", availableUntil: "2026-09-05T23:59:00+02:00" })).toMatchObject({ ok: true });
-    expect(read().stagedPlan?.stops.at(-1)).toMatchObject({ kind: "custom_place", customPlace: { verification: { status: "unverified" } } });
+    expect(read().currentPlan?.stops.at(-1)).toMatchObject({ kind: "custom_place", customPlace: { verification: { status: "unverified" } } });
 
     const rejected = actions.proposeEventLead({ ...eventInput, sourceUrl: "https://venue.example/reject-me", fields: { ...eventInput.fields, title: "Reject me" }, evidence: [{ field: "title", sourceUrl: "https://venue.example/reject-me" }] });
     if (!rejected.ok) throw new Error("expected rejected lead proposal");

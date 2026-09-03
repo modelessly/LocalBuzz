@@ -15,7 +15,7 @@ Validate the product behavior required for the demo and WebMCP judging criteria.
 
 ### Plan staging
 
-- creates staged plan without overwriting accepted plan
+- builds the canonical plan directly without partial mutation on failure
 - calculates estimated total cost
 - rejects unknown happening IDs
 - flags obvious time conflicts
@@ -76,7 +76,7 @@ For each state-changing WebMCP tool, verify it calls the same domain operation u
 Call:
 
 - `show_candidates` and verify relevant UI state
-- `stage_evening_plan` and verify staged timeline
+- `build_evening_plan` and verify the directly editable timeline
 - `lock_plan_stop` and verify lock
 - `repair_plan` and verify staged diff
 
@@ -96,11 +96,11 @@ Complete a basic night using only the UI.
 
 ### B. Agent-only tool path
 
-Through WebMCP, search and stage a plan.
+Through WebMCP, search and build a plan.
 
 ### C. Human-agent collaboration
 
-1. agent stages
+1. agent builds or adds stops
 2. human locks
 3. agent reads
 4. agent repairs
@@ -108,11 +108,11 @@ Through WebMCP, search and stage a plan.
 
 ### D. Disruption
 
-1. accepted/staged night exists
+1. current night exists
 2. apply demo unavailable update
 3. UI shows conflict
 4. agent repair changes only required stop
-5. human accepts
+5. current plan already contains the validated repair
 
 ## Browser verification
 
@@ -166,7 +166,7 @@ Automated coverage must verify:
 - the Phase 1 thirteen tools remain registered and the five Place tools mutate the same state as UI actions;
 - event-only plan and repair tests continue to pass.
 
-Manual browser acceptance for Phase 1 is limited to the implementation path: switch to Places, inspect canonical/needs-review cards, stage a dinner or drinks stop, add an event, inspect the mixed map/timeline, stage a custom place, confirm its unverified label, and exercise staged acceptance/rejection only with explicit approval. Do not treat fixture hours or prices as live availability.
+Manual browser verification for Phase 1 is limited to the implementation path: switch to Places, inspect source and operating-data copy, add a dinner or drinks stop, add an event, inspect the mixed map/timeline, add a custom place, and confirm it remains outside the canonical catalog. Do not treat fixture hours or prices as live availability.
 
 ## Phase 2 Place qualification regression contract
 
@@ -180,14 +180,34 @@ Automated coverage must prove:
 - closed/incomplete/kitchen/budget/duration/reservation failures and stale/incomplete verification warnings;
 - existing event-only and mixed-plan lock/repair behavior.
 
-Browser verification is focused on visible catalog count, filter controls, verification dates and a WebMCP filtered search. It must not accept or reject staged state without explicit approval and is not a substitute for checking official operating data.
+Browser verification is focused on visible catalog count, filter controls, source checked dates, a WebMCP filtered search and direct plan editing. It must also confirm that qualification statuses are not rendered as tags and is not a substitute for checking official operating data.
 
 ## Phase 3 ingestion regression contract
 
-Automated coverage proves JSON-LD, ICS, RSS/Atom, official JSON and sitemap parsing; canonical city/location/time-zone/expiration/URL/currency validation; stable IDs and deduplication; Ticketmaster filters/status/missing-key behavior; Visit Sweden mapping; and last-good retention after empty or failed refreshes. Existing event-only and mixed-plan tests remain the compatibility gate.
+Automated coverage proves JSON-LD, ICS, RSS/Atom, official JSON and sitemap parsing; canonical city/location/time-zone/expiration/URL/currency validation; stable IDs and deduplication; Ticketmaster `latlong`, second-precision date filters, status and missing-key behavior; Billetto header authentication, Swedish-domain pagination, status/location/URL/currency filtering and credential-safe errors; Visit Sweden mapping; and per-source last-good retention after empty or failed refreshes. Existing event-only and mixed-plan tests remain the compatibility gate.
 
 Live checks report exact source, date and accepted/rejected counts. They are refresh evidence, not deterministic tests or a coverage guarantee.
 
 ## Phase 4 discovery-lead regression contract
 
 Automated coverage must prove public HTTPS URL validation; rejection of malformed, credentialed, local, private, link-local and oversized input; wrong-city handling; staged missing/date/location/duplicate/provenance warnings; no proposal-time canonical mutation; canonical event and Place acceptance; rejection without inventory change; Place-only unverified custom retention; fifteen static tool schemas; and proposal lifecycle targeting the review surface.
+
+## Phase 5 coverage/radar regression contract
+
+Automated coverage must prove deterministic empty/weak/covered cells; stale inventory and Place-corridor gaps; city/neighborhood/category/time/price/lead-time query constraints; city-specific discovery vocabulary; collector result URL/date/location/provenance/deduplication validation; insertion into the shared DiscoveryLead frontier without canonical mutation; six-hour cache and missing-key/failure last-good behavior; DataSF closure deduplication; PermitSF missing-field honesty; disabled Stockholm source reasoning; permit-only rejection; and independent municipal corroboration.
+
+Time-selection regression coverage must prove that Right Now includes only events active at the current instant, uses the normalized 90-minute duration when an explicit end is absent, and excludes future, ended and over-12-hour provider windows. Normalization must accept four-hour, cross-midnight and exact-12-hour events while rejecting longer weekly/monthly containers with the distinct nightly-limit reason. Retained snapshots, provider adapters, startup replacement and UI/WebMCP search must enforce the same eligibility. `startAfter` must constrain the actual event start, completed ingestion must not restore the entire catalog, and an empty Later selection must remain Later rather than silently showing Tomorrow.
+
+Your Night browser checks cover empty/disconnected and connected states, event-only and mixed plans, locked plans, real unavailable events, and agent-driven repair when a real unavailable source state is present. The timeline must contain no approval controls, colored status chips or removed demo controls. Automated tests remain the deterministic repair gate when no live source supplies an unavailable event during the browser session.
+
+Live verification reports exact DataSF accepted counts and one bounded gap-search outcome. It is operational evidence, not a deterministic test or city-coverage claim.
+
+## Phase 6 consolidation regression contract
+
+Automated coverage must prove stable graph identities; per-edge provenance; depth/domain/query/record/cadence limits; cycle/duplicate rejection; graph leads remaining review-only; PredictHQ city/date parsing; Bandsintown trusted-performer/city/terms constraints; Songkick disabled state; benchmark/canonical separation; missing-credential/failure last-good retention; source policy coverage, cadence and quota decisions; plan-acceptance cancellation/Place-operation rechecks; and the final catalog/corridor/provenance audit.
+
+The complete repository verification remains `npm run verify`. Provider live calls are optional operational evidence and must state credential, subscription and terms limitations. Phase 6 has no new UI, so broad browser exploration is not required; existing human/WebMCP regressions remain covered by the full suite and production build.
+
+## P0 startup and Place-fallback regression contract
+
+Deterministic coverage now includes available/unavailable cold starts, delayed completion, timeout/rejection, empty success, malformed response, last-good retention, expired exclusion, stale-request ordering, city switch during refresh, zero-event Place display, candidate subset restoration, UI/WebMCP inventory agreement, both two-stop default Place fallbacks, and plan immutability during refresh. Browser verification must inspect both cities with credentials unavailable, open source details, surface and restore two Place candidates, stage but not accept each Place fallback, and confirm no expired fixture appears as current.

@@ -36,12 +36,16 @@ export function buildTicketmasterUrl(options: TicketmasterOptions): string {
   const city = cityConfig[options.source.cityId];
   const url = new URL(options.source.fetchUrl);
   url.searchParams.set("apikey", options.apiKey);
-  url.searchParams.set("geoPoint", `${city.lat},${city.lng}`);
+  // Discovery v2 accepts latitude/longitude through `latlong`. `geoPoint`
+  // expects a geohash; passing coordinates there produces an HTTP 400.
+  url.searchParams.set("latlong", `${city.lat},${city.lng}`);
   url.searchParams.set("radius", String(city.radius));
   url.searchParams.set("unit", city.unit);
   url.searchParams.set("countryCode", city.countryCode);
-  url.searchParams.set("startDateTime", options.startDateTime);
-  url.searchParams.set("endDateTime", options.endDateTime);
+  // Discovery rejects otherwise-valid ISO strings when fractional seconds are
+  // present, so serialize its documented second-precision format explicitly.
+  url.searchParams.set("startDateTime", new Date(options.startDateTime).toISOString().replace(/\.\d{3}Z$/, "Z"));
+  url.searchParams.set("endDateTime", new Date(options.endDateTime).toISOString().replace(/\.\d{3}Z$/, "Z"));
   url.searchParams.set("size", "100");
   url.searchParams.set("sort", "date,asc");
   if (options.classifications?.length) url.searchParams.set("classificationName", options.classifications.join(","));
@@ -85,7 +89,19 @@ export async function collectTicketmaster(options: TicketmasterOptions) {
   if (!options.apiKey) return { happenings: [], rejected: [], status: "unavailable" as const, attemptedAt, message: "TICKETMASTER_API_KEY is not configured" };
   const response = await (options.fetchImpl ?? fetch)(buildTicketmasterUrl(options));
   if (!response.ok) throw new Error(`Ticketmaster returned HTTP ${response.status}`);
-  const candidates = parseTicketmasterResponse(await response.json(), options.source);
+  const payload = await response.json();
+  const candidates = parseTicketmasterResponse(payload, options.source);
+  const rawCount = list(record(record(payload)?._embedded)?.events).length;
   const normalized = candidates.map((candidate) => normalizeEventCandidate(candidate, options.source, attemptedAt, options.now));
-  return { happenings: normalized.flatMap((item) => item.happening ? [item.happening] : []), rejected: normalized.flatMap((item) => item.reason ? [item.reason] : []), status: "fresh" as const, attemptedAt };
+  const rejected = [
+    ...normalized.flatMap((item) => item.reason ? [item.reason] : []),
+    ...Array(Math.max(0, rawCount - candidates.length)).fill("missing required provider fields"),
+  ];
+  return {
+    happenings: normalized.flatMap((item) => item.happening ? [item.happening] : []),
+    rejected,
+    candidateCount: rawCount,
+    status: "fresh" as const,
+    attemptedAt,
+  };
 }
