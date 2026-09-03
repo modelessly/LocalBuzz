@@ -43,4 +43,13 @@ describe("shared-state presentation copy", () => {
     expect(styles).toMatch(/\.map-panel, \.night-panel\s*\{[^}]*overflow:\s*hidden[^}]*contain:\s*paint/s);
     expect(styles).not.toMatch(/\.workspace::(?:before|after)/);
   });
+
+  it("keeps consumer empty states resettable and prevents tablet header overflow", () => {
+    const app = readFileSync("src/App.tsx", "utf8");
+    const styles = readFileSync("src/styles.css", "utf8");
+    expect(app).toMatch(/No matching events.*Clear search/s);
+    expect(app).toMatch(/Source updates may be incomplete/);
+    expect(app).toMatch(/No matching places.*Clear filters/s);
+    expect(styles).toMatch(/@media \(max-width: 1050px\)[\s\S]*\.topbar\s*\{[^}]*minmax\(0, 1fr\)[^}]*\}[\s\S]*\.header-controls\s*\{[^}]*flex-wrap:\s*wrap/s);
+  });
 });

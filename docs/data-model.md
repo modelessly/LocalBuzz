@@ -309,3 +309,5 @@ Every direct plan mutation reuses canonical Place visit validation and event ava
 Each source exposes identifier/publisher, `fresh | retained | unavailable | disabled | invalid | refreshing`, attempt and last-success times, accepted/rejected/retained/expired counts, empty-success state and a safe reason. This is operational metadata, not another copy of `Happening`; canonical records remain in `state.happenings` and plans continue to reference stable IDs.
 
 Visible listing IDs and candidate IDs have distinct meanings. Listing IDs are controlled by the active time window and explicit human searches/filters. Candidate IDs are an additive map/card emphasis layer and cannot reduce the listing. Neither collection owns or mutates the itinerary.
+
+Human listing restoration does not clear candidate IDs; city switching still clears both collections. Consumer plan-price presentation resolves every referenced stop: all-known prices use the canonical plan total, some-known prices display a partial total, and no-known prices display `Price unavailable`. This presentation rule does not make unknown-price stops eligible for hard-budget plans.

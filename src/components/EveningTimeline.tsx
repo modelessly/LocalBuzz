@@ -2,7 +2,8 @@ import { ArrowUpRight, Lock, Sparkles, Unlock, X } from "lucide-react";
 import { ModelessButton } from "@modeless/design-system";
 import type { EveningPlan, Happening, LocalBuzzState, Place, PlanStop } from "../domain/types";
 import type { AgentActivity } from "../webmcp/activity";
-import { formatDateTimeRange, formatTimeRange, priceLabel } from "../lib/format";
+import { formatDateTimeRange, formatDateTimeRangeAccessible, formatTimeRange, priceLabel } from "../lib/format";
+import { planPriceSummary } from "../lib/planPresentation";
 import { timelineStopLink } from "../lib/timelineLinks";
 
 type EveningTimelineProps = {
@@ -37,6 +38,7 @@ export function EveningTimeline({
   const estimatedEnd = lastStop?.kind === "happening"
     ? !byId.get(lastStop.happeningId)?.timing.end
     : Boolean(lastStop);
+  const priceSummary = plan ? planPriceSummary(plan, happenings, places) : undefined;
   const stopDetails = (stop: PlanStop) => {
     if (stop.kind === "happening") {
       const item = byId.get(stop.happeningId);
@@ -87,7 +89,7 @@ export function EveningTimeline({
             >
               <div className="timeline__rail"><span>{index + 1}</span></div>
               <div className="timeline__stop-body">
-                <div className="timeline__stop-time"><time dateTime={stop.plannedStart}>{formatDateTimeRange(stop.plannedStart, stop.plannedEnd, timeZone, stopEndEstimated)}</time></div>
+                <div className="timeline__stop-time"><time dateTime={stop.plannedStart} aria-label={formatDateTimeRangeAccessible(stop.plannedStart, stop.plannedEnd, timeZone, stopEndEstimated)}>{formatDateTimeRange(stop.plannedStart, stop.plannedEnd, timeZone, stopEndEstimated)}</time></div>
                 <div className="timeline__stop-title">
                   <strong>{details.title}</strong>
                 </div>
@@ -119,7 +121,7 @@ export function EveningTimeline({
           <span>Time</span>
           <strong title={estimatedEnd ? "The ending time is estimated from the final stop's typical duration." : undefined} aria-label={estimatedEnd ? `${formatTimeRange(plan.startTime, plan.endTime, timeZone)}. Ending time estimated.` : undefined}>{formatTimeRange(plan.startTime, plan.endTime, timeZone)}</strong>
         </div>
-        <div><span>Estimated price</span><strong>{priceLabel(plan.totalEstimatedCost, plan.constraints.currency)}</strong></div>
+        <div><span>Estimated price</span><strong aria-label={priceSummary?.accessibleLabel} title={priceSummary?.partial ? priceSummary.accessibleLabel : undefined}>{priceSummary?.label}</strong></div>
       </div>
     </div>
   );

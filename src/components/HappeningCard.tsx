@@ -1,7 +1,7 @@
 import { ArrowUpRight, Clock3, MapPin, Plus, RefreshCw, X } from "lucide-react";
 import { ModelessButton, SignalBadge } from "@modeless/design-system";
 import type { Happening } from "../domain/types";
-import { categoryLabel, formatDateTimeRange, formatDay, priceLabel } from "../lib/format";
+import { categoryLabel, formatDateTimeRange, formatDateTimeRangeAccessible, formatDay, priceLabel } from "../lib/format";
 
 type HappeningCardProps = {
   happening: Happening;
@@ -31,6 +31,10 @@ export function HappeningCard({
   const unavailable = ["sold_out", "cancelled"].includes(happening.status.availability);
   const pulse = happening.socialPulse;
   const planningReady = happening.commerce.priceMin !== undefined && happening.kind !== "city_condition" && happening.kind !== "community_report";
+  const displayEnd = happening.timing.end ?? (happening.timing.estimatedDurationMinutes
+    ? new Date(Date.parse(happening.timing.start) + happening.timing.estimatedDurationMinutes * 60_000).toISOString()
+    : undefined);
+  const endEstimated = !happening.timing.end && Boolean(displayEnd);
   return (
     <article
       className={`happening-card ${candidate ? "is-candidate" : ""} ${selected ? "is-selected" : ""} ${inPlan ? "is-in-plan" : ""} ${unavailable ? "is-unavailable" : ""}`}
@@ -64,7 +68,7 @@ export function HappeningCard({
       ) : null}
       {pulse && !planningReady ? <p className="happening-card__pulse-note">Live evidence for discovery; itinerary use needs a confirmed price.</p> : null}
       <dl className="happening-card__meta">
-        <div><Clock3 aria-hidden="true" size={14} /><span><time dateTime={happening.timing.start}>{formatDateTimeRange(happening.timing.start, happening.timing.end, timeZone, !happening.timing.end)}</time> · {priceLabel(happening.commerce.priceMin, happening.commerce.currency)}</span></div>
+        <div><Clock3 aria-hidden="true" size={14} /><span><time dateTime={happening.timing.start} aria-label={formatDateTimeRangeAccessible(happening.timing.start, displayEnd, timeZone, endEstimated)}>{formatDateTimeRange(happening.timing.start, displayEnd, timeZone, endEstimated)}</time> · {priceLabel(happening.commerce.priceMin, happening.commerce.currency)}</span></div>
         <div><MapPin aria-hidden="true" size={14} /><span>{happening.venue.name} · {happening.venue.neighborhood}</span></div>
       </dl>
       <div className="tag-row">

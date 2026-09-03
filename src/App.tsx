@@ -257,6 +257,7 @@ export function App() {
     if (result.ok) actions.showPlaceListings(result.places.map((place) => place.id), `${result.count} qualified places match the active filters.`);
     else handleResult(result);
   };
+  const clearPlaceFilters = () => applyPlaceFilters({ purpose: "", kind: "", mood: "", neighborhood: "", maxPrice: "", openAt: false });
 
   const switchCity = (cityId: CityId) => {
     const nextCity = getCityDefinition(cityId);
@@ -447,7 +448,7 @@ export function App() {
             <ModelessButton variant="outline" onClick={search}><Search aria-hidden="true" size={15} /> Search {searchContext}</ModelessButton>
           </div> : null}
         </div>
-        {state.candidateReason ? (
+        {state.candidateReason && (discoveryMode === "events" ? state.candidateHappeningIds.length : state.candidatePlaceIds.length) ? (
           <div className="candidate-reason">
             <span>{discoveryMode === "places" && state.candidatePlaceIds.length
               ? `${placeCandidateSummary(state.candidatePlaceIds.length, state.candidateReasonOrigin)} ${state.candidateReason}`
@@ -462,7 +463,7 @@ export function App() {
             <label>Mood<input value={placeFilterState.mood} placeholder="cozy" onChange={(event) => applyPlaceFilters({ ...placeFilterState, mood: event.target.value })} /></label>
             <label>Max / person<input type="number" min="0" value={placeFilterState.maxPrice} onChange={(event) => applyPlaceFilters({ ...placeFilterState, maxPrice: event.target.value })} /></label>
             <label className="place-filters__check"><input type="checkbox" checked={placeFilterState.openAt} onChange={(event) => applyPlaceFilters({ ...placeFilterState, openAt: event.target.checked })} /> Open at 20:00</label>
-            <button type="button" onClick={() => applyPlaceFilters({ purpose: "", kind: "", mood: "", neighborhood: "", maxPrice: "", openAt: false })}>Clear</button>
+            <button type="button" onClick={clearPlaceFilters}>Clear</button>
           </div>
         ) : null}
         {discoveryMode === "places" ? (
@@ -479,7 +480,7 @@ export function App() {
           </details>
         ) : null}
         <div className={discoveryMode === "events" ? "happening-grid" : "place-grid"}>
-          {discoveryMode === "events" ? visibleHappenings.map((happening) => (
+          {discoveryMode === "events" ? visibleHappenings.length ? visibleHappenings.map((happening) => (
             <HappeningCard
               key={happening.id}
               happening={happening}
@@ -493,11 +494,11 @@ export function App() {
               onReject={() => rejectCandidate(happening.id)}
               onAdd={() => addEvent(happening.id)}
             />
-          )) : visiblePlaces.map((place) => (
+          )) : <div className="catalog-empty" role="status"><strong>No matching events</strong><p>{query.trim() ? "Nothing matched your search in this time window." : "No current events are available in Local Buzz for this time window. Source updates may be incomplete."}</p>{query.trim() ? <button type="button" onClick={() => { setQuery(""); restoreFullListing(); }}>Clear search</button> : null}</div> : visiblePlaces.length ? visiblePlaces.map((place) => (
             <PlaceCard key={place.id} place={place} timeZone={city.timeZone} candidate={state.candidatePlaceIds.includes(place.id)} selected={state.selectedPlaceId === place.id}
               inPlan={Boolean(plan?.stops.some((stop) => stop.kind === "place" && stop.placeId === place.id))}
               onSelect={() => actions.selectPlace(place.id)} onAdd={(purpose) => addPlace(place.id, purpose)} />
-          ))}
+          )) : <div className="catalog-empty" role="status"><strong>No matching places</strong><p>No places match the current filters.</p><button type="button" onClick={clearPlaceFilters}>Clear filters</button></div>}
         </div>
       </section>
 

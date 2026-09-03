@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { EveningPlan, Happening, Place } from "../domain/types";
-import { timelineStopLink } from "../lib/timelineLinks";
+import { discoveryLeadLink, timelineStopLink } from "../lib/timelineLinks";
 import { DiscoveryReview } from "./DiscoveryReview";
 import { EveningTimeline } from "./EveningTimeline";
 
@@ -85,6 +85,13 @@ describe("Your Night presentation", () => {
     expect(markup).toContain("The ending time is estimated from the final stop&#x27;s typical duration.");
     expect(markup).toContain("Ending time estimated.");
   });
+
+  it("never presents unknown prices as zero and identifies partial totals", () => {
+    const unknownEvent = { ...happening, commerce: { ...happening.commerce, priceMin: undefined } };
+    const partialPlan = { ...stockholmPlan, totalEstimatedCost: 590 };
+    expect(renderTimeline(partialPlan, [unknownEvent])).toContain("590 SEK · partial");
+    expect(renderTimeline({ ...partialPlan, stops: [partialPlan.stops[1]], startTime: partialPlan.stops[1].plannedStart }, [unknownEvent])).toContain("Price unavailable");
+  });
 });
 
 describe("Options presentation", () => {
@@ -97,6 +104,18 @@ describe("Options presentation", () => {
     expect(markup).toContain("Options");
     expect(markup).toContain("3 SEP · 20:00–21:30");
     expect(markup).toContain('dateTime="2026-09-03T20:00:00+02:00"');
+    expect(markup).toMatch(/aria-label="Thursday.*3 September 2026.*20:00.*21:30/i);
+    expect(markup).toContain("Event details");
     expect(markup).not.toMatch(/Agent acquisition|Discovery review|awaiting review|accepted canonical|Provisional|discovery only|Canonical fields|Evidence references|Validation:/i);
+  });
+
+  it("chooses truthful option destinations", () => {
+    const base = {
+      id: "place-lead", leadType: "place" as const, cityId: "stockholm" as const, originalSourceUrl: "https://source.example/place", sourceType: "official_page" as const,
+      submittedBy: { kind: "webmcp_agent" as const, toolName: "propose_place_from_url" as const }, fields: { name: "Dinner", kind: "restaurant" as const, reservationUrl: "https://booking.example/dinner" },
+      missingRequiredFields: [], possibleDuplicateMatches: [], verificationStatus: "provisional" as const, evidence: [{ field: "name", sourceUrl: "https://source.example/place" }], issues: [], createdAt: "2026-09-03T12:00:00Z",
+    };
+    expect(discoveryLeadLink(base)).toMatchObject({ label: "Reserve table", href: "https://booking.example/dinner" });
+    expect(discoveryLeadLink({ ...base, sourceType: "editorial_page", fields: { name: "Dinner" } })).toMatchObject({ label: "View source" });
   });
 });

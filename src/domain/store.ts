@@ -539,9 +539,6 @@ export class LocalBuzzActions {
     this.update((current) => ({
       ...current,
       visibleHappeningIds: ids,
-      candidateHappeningIds: [],
-      candidateReason: undefined,
-      candidateReasonOrigin: undefined,
       selectedHappeningId: undefined,
       discoveryMode: "events",
       activityMessage: message ?? `${ids.length} happenings are visible.`,
@@ -596,10 +593,7 @@ export class LocalBuzzActions {
     this.update((current) => ({
       ...current,
       visiblePlaceIds: ids,
-      candidatePlaceIds: [],
       selectedPlaceId: undefined,
-      candidateReason: undefined,
-      candidateReasonOrigin: undefined,
       discoveryMode: "places",
       activityMessage: message ?? `${ids.length} places are visible.`,
     }));

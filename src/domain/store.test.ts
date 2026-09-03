@@ -93,13 +93,14 @@ describe("Local Buzz shared domain actions", () => {
 
     actions.showListings(fullWindowIds.slice(0, 2), "Human search");
     expect(state.visibleHappeningIds).toEqual(fullWindowIds.slice(0, 2));
-    expect(state.candidateHappeningIds).toEqual([]);
+    expect(state.candidateHappeningIds).toEqual([promotedId]);
 
     actions.buildEveningPlan(initialStops);
     actions.lockPlanStop("stop-2");
     const plan = structuredClone(state.currentPlan);
     actions.showListings(fullWindowIds, "Search cleared");
     expect(state.visibleHappeningIds).toEqual(fullWindowIds);
+    expect(state.candidateHappeningIds).toEqual([promotedId]);
     expect(state.currentPlan).toEqual(plan);
   });
 
@@ -109,6 +110,12 @@ describe("Local Buzz shared domain actions", () => {
     const promotedId = state.places[5].id;
     actions.showPlaceCandidates([promotedId], "Agent recommendation");
     expect(state.visiblePlaceIds).toEqual([...visibleIds, promotedId]);
+    expect(state.candidatePlaceIds).toEqual([promotedId]);
+    actions.showPlaceListings(visibleIds.slice(0, 2), "Human filters");
+    expect(state.visiblePlaceIds).toEqual(visibleIds.slice(0, 2));
+    expect(state.candidatePlaceIds).toEqual([promotedId]);
+    actions.showPlaceListings(visibleIds, "Filters cleared");
+    expect(state.visiblePlaceIds).toEqual(visibleIds);
     expect(state.candidatePlaceIds).toEqual([promotedId]);
   });
 
@@ -181,9 +188,13 @@ describe("Local Buzz shared domain actions", () => {
   });
 
   it("clears the canonical plan on city switch and uses the new currency", () => {
+    actions.showCandidates([state.happenings[0].id], "Agent recommendation");
+    actions.showPlaceCandidates([state.places[0].id], "Agent recommendation");
     actions.buildEveningPlan(initialStops);
     actions.switchCity("san-francisco");
     expect(state.currentPlan).toBeNull();
+    expect(state.candidateHappeningIds).toEqual([]);
+    expect(state.candidatePlaceIds).toEqual([]);
     const result = actions.buildEveningPlan([{ happeningId: "sf-crucial-reggae", plannedStart: "2026-08-30T16:30:00-07:00" }]);
     expect(result).toMatchObject({ ok: true });
     expect(state.currentPlan?.constraints.currency).toBe("USD");

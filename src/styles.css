@@ -623,6 +623,14 @@ button:disabled { cursor: not-allowed; }
 .candidate-reason button { padding: 7px 10px; color: hsl(var(--foreground)); background: transparent; border: 1px solid hsl(var(--border)); border-radius: 3px; cursor: pointer; font: inherit; }
 .candidate-reason button:hover { border-color: hsl(var(--primary)); }
 .happening-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.catalog-empty { grid-column: 1 / -1; padding: 36px 24px; text-align: center; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
+.catalog-empty strong { display: block; color: hsl(var(--foreground)); font-family: var(--font-display); font-size: 18px; text-transform: uppercase; }
+.catalog-empty p { margin: 8px auto 16px; max-width: 520px; color: hsl(var(--muted-foreground)); }
+.catalog-empty button { min-height: 44px; padding: 0 18px; border: 1px solid hsl(var(--primary)); border-radius: 3px; color: hsl(var(--foreground)); background: transparent; cursor: pointer; font: 600 12px var(--font-ui); text-transform: uppercase; }
+.catalog-empty button:hover { background: hsl(var(--primary) / .08); }
+.catalog-empty button:active { transform: translateY(1px); }
+.catalog-empty button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+.catalog-empty button:disabled { cursor: not-allowed; opacity: .45; }
 .happening-card {
   position: relative;
   min-height: 260px;
@@ -758,8 +766,8 @@ button:disabled { cursor: not-allowed; }
   .happening-grid, .place-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .custom-place-form > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .place-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .topbar { grid-template-columns: 1fr; padding: 20px 0; }
-  .header-controls { justify-content: space-between; }
+  .topbar { grid-template-columns: minmax(0, 1fr); padding: 20px 0; }
+  .header-controls { min-width: 0; flex-wrap: wrap; justify-content: flex-start; }
 }
 
 @media (max-width: 1280px) and (min-width: 1051px) {

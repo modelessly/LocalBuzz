@@ -69,7 +69,7 @@ describe("Place catalog subset and shared inventory", () => {
     expect(read().visiblePlaceIds).toHaveLength(33);
     actions.showPlaceListings(read().places.map((place) => place.id), "Full catalog restored.");
     expect(read().visiblePlaceIds).toHaveLength(33);
-    expect(read().candidatePlaceIds).toEqual([]);
+    expect(read().candidatePlaceIds).toEqual(["sf-trick-dog", "sf-benders"]);
     expect(read().currentPlan).toEqual(before);
   });
 

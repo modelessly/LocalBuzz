@@ -18,11 +18,17 @@ const localDateKey = (value: string, timeZone: string) => new Intl.DateTimeForma
   year: "numeric", month: "2-digit", day: "2-digit", timeZone,
 }).format(new Date(value));
 
+const localYear = (value: string | Date, timeZone: string) => new Intl.DateTimeFormat("en", {
+  year: "numeric", timeZone,
+}).format(new Date(value));
+
 const dateLabel = (value: string, timeZone: string) => {
   const parts = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone }).formatToParts(new Date(value));
   const day = parts.find((part) => part.type === "day")?.value ?? "";
   const month = (parts.find((part) => part.type === "month")?.value ?? "").replaceAll(".", "").toUpperCase();
-  return isSanFrancisco(timeZone) ? `${month} ${day}` : `${day} ${month}`;
+  const year = localYear(value, timeZone);
+  const yearSuffix = year === localYear(new Date(), timeZone) ? "" : ` ${year}`;
+  return isSanFrancisco(timeZone) ? `${month} ${day}${yearSuffix}` : `${day} ${month}${yearSuffix}`;
 };
 
 export const formatTime = (value: string, timeZone = "Europe/Stockholm") => {
@@ -45,15 +51,37 @@ export function formatDateTimeRange(start: string, end: string | undefined, time
   if (!end) return `${startDate} · ${formatTime(start, timeZone)}`;
   const endDate = dateLabel(end, timeZone);
   const endClock = clockParts(end, timeZone);
-  const estimate = estimatedEnd ? (isSanFrancisco(timeZone) ? "ABOUT " : "CA ") : "";
+  const estimate = estimatedEnd && !isSanFrancisco(timeZone) ? "CA " : "";
+  const estimateSuffix = estimatedEnd && isSanFrancisco(timeZone) ? " (EST.)" : "";
   const crossesDate = localDateKey(start, timeZone) !== localDateKey(end, timeZone);
 
   if (crossesDate) {
-    return `${startDate} · ${formatTime(start, timeZone)}–${endDate} · ${estimate}${formatTime(end, timeZone)}`;
+    return `${startDate} · ${formatTime(start, timeZone)}–${endDate} · ${estimate}${formatTime(end, timeZone)}${estimateSuffix}`;
   }
   if (!startClock.period) return `${startDate} · ${startClock.clock}–${estimate}${endClock.clock}`;
   const from = startClock.period === endClock.period ? startClock.clock : `${startClock.clock} ${startClock.period}`;
-  return `${startDate} · ${from}–${estimate}${endClock.clock} ${endClock.period}`;
+  return `${startDate} · ${from}–${endClock.clock} ${endClock.period}${estimateSuffix}`;
+}
+
+const fullDateTime = (value: string, timeZone: string) => new Intl.DateTimeFormat(
+  isSanFrancisco(timeZone) ? "en-US" : "en-GB",
+  {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: isSanFrancisco(timeZone) ? "numeric" : "2-digit",
+    minute: "2-digit",
+    hour12: isSanFrancisco(timeZone),
+    hourCycle: isSanFrancisco(timeZone) ? undefined : "h23",
+    timeZone,
+    timeZoneName: "short",
+  },
+).format(new Date(value));
+
+export function formatDateTimeRangeAccessible(start: string, end: string | undefined, timeZone: string, estimatedEnd = false) {
+  const range = end ? `${fullDateTime(start, timeZone)} to ${fullDateTime(end, timeZone)}` : fullDateTime(start, timeZone);
+  return `${range}.${estimatedEnd ? " End time estimated." : end ? "" : " End time unavailable."}`;
 }
 
 export const formatDay = (value: string, timeZone = "Europe/Stockholm") =>
@@ -67,7 +95,7 @@ export const formatDay = (value: string, timeZone = "Europe/Stockholm") =>
 export const categoryLabel = (value: string) => value.replaceAll("_", " ");
 
 export const priceLabel = (price: number | undefined, currency: CurrencyCode) => {
-  if (price === undefined) return "Price at source";
+  if (price === undefined) return "Price unavailable";
   if (price === 0) return "Free";
   return currency === "SEK" ? `${price} SEK` : `$${price}`;
 };

@@ -16,7 +16,7 @@ The browser agent and human interface share the same `LocalBuzzActions` instance
 
 Search results never enter the itinerary automatically.
 
-Human search restrictions and agent candidate highlighting are separate. Candidate tools may promote a requested ID into the current listing, but never shrink it. Clearing human search recomputes the active city/time-window listing and preserves the itinerary and locks.
+Human search restrictions and agent candidate highlighting are separate. Candidate tools may promote a requested ID into the current listing, but never shrink it. Clearing human search recomputes the active city/time-window listing and preserves the itinerary, locks and candidate IDs. Switching cities clears incompatible plan and candidate state.
 
 Social results return `kind` plus optional `socialPulse` evidence, confidence, freshness, actionability and deterministic Buzz Score fields. Existing calls remain valid. A standalone pulse signal normally has unknown price and therefore cannot bypass the hard-budget planning guard; social support merged into a canonical scheduled event keeps that event's normal planning contract.
 

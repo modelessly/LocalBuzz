@@ -601,3 +601,19 @@ Per-source health and qualification enums remain available to domain/WebMCP cons
 
 Status:
 Accepted; supersedes the visible admin-language and candidate-replacement portions of earlier discovery decisions.
+
+---
+
+## 2026-09-03: Preserve Candidate Identity And Derive Price Completeness
+
+Decision:
+Human search and filter listing updates preserve agent candidate IDs; city switching remains the boundary that clears incompatible candidate state. Itinerary price presentation derives completeness from each referenced stop rather than assuming `totalEstimatedCost: 0` means free. Abbreviated date/time text carries a shared full localized accessible description, and empty searches provide a direct reset.
+
+Reasoning:
+Candidate identity and human result restriction are independent state dimensions. A partial numeric total presented as complete is less trustworthy than an explicit partial or unavailable state, and concise visual dates should not cost screen-reader clarity.
+
+Tradeoffs:
+Candidate emphasis can remain outside a narrowed human result set until that result set is cleared or the agent promotes the candidate again. Unknown-price events remain blocked by hard-budget validation; the presentation fallback is defensive rather than a planning bypass.
+
+Status:
+Accepted.

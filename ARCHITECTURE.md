@@ -366,6 +366,8 @@ The ingestion endpoint awaits all permitted collectors, including the server-onl
 
 ## Listing and candidate-state boundary
 
-`visibleHappeningIds` and `visiblePlaceIds` represent the human's current listing, including the active city/time window and any explicit human search or filter. `candidateHappeningIds` and `candidatePlaceIds` are an independent emphasis layer. WebMCP `show_candidates` and `show_place_candidates` may promote IDs into the current listing and highlight them, but never remove unrelated visible records. Human search may narrow a listing; clearing it recomputes the complete active time window without mutating `currentPlan` or locks.
+`visibleHappeningIds` and `visiblePlaceIds` represent the human's current listing, including the active city/time window and any explicit human search or filter. `candidateHappeningIds` and `candidatePlaceIds` are an independent emphasis layer. WebMCP `show_candidates` and `show_place_candidates` may promote IDs into the current listing and highlight them, but never remove unrelated visible records. Human search may narrow a listing; clearing it recomputes the complete active time window without mutating `currentPlan`, locks or candidate IDs. City switching clears all incompatible listing, candidate and plan state.
 
 Operational inventory metadata remains in shared state and WebMCP results, but is not rendered as a primary consumer-facing status strip. Source attribution stays attached to event and Place records.
+
+Timeline price presentation resolves the evidence for every referenced stop rather than trusting a numeric zero. Incomplete totals are labelled partial or unavailable without weakening the planning engine's hard-budget rejection.
