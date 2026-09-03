@@ -18,7 +18,7 @@ Search results never enter the itinerary automatically.
 
 Human search restrictions and agent candidate highlighting are separate. Candidate tools may promote a requested ID into the current listing, but never shrink it. Clearing human search recomputes the active city/time-window listing and preserves the itinerary, locks and candidate IDs. Switching cities clears incompatible plan and candidate state.
 
-Social results return `kind` plus optional `socialPulse` evidence, confidence, freshness, actionability and deterministic Buzz Score fields. Existing calls remain valid. A standalone pulse signal normally has unknown price and therefore cannot bypass the hard-budget planning guard; social support merged into a canonical scheduled event keeps that event's normal planning contract.
+Social results return `kind` plus optional `socialPulse` evidence, confidence, freshness, actionability and deterministic Buzz Score fields. Existing calls remain valid. A standalone pulse signal normally has unknown price; it may enter an uncapped plan with partial-price presentation, but it cannot bypass an explicitly supplied budget. Social support merged into a canonical scheduled event keeps that event's normal planning contract.
 
 ## Direct itinerary editing
 
@@ -34,7 +34,7 @@ Social results return `kind` plus optional `socialPulse` evidence, confidence, f
 | `remove_plan_stop` | Remove an unlocked stop; removing the last stop restores the empty night. |
 | `repair_plan` | Replace only disrupted, unlocked event stops and apply the valid repair directly. |
 
-All newly added stops start unlocked. Unknown event prices never count as zero: any hard-budget mutation requiring an unknown price fails with `BUDGET_CONFLICT`. Place operations enforce weekly hours, kitchen cutoff, visit duration, reservation mode, party-size cost, currency, adjacent-stop timing and latest-end time.
+All newly added stops start unlocked. The build and add tools accept an optional total-party `budget`; omitting it creates an uncapped night, a number applies or updates the cap, and `null` removes an existing cap while adding a stop. Unknown event prices never count as zero: they produce partial or unavailable price presentation in an uncapped plan and fail with `BUDGET_CONFLICT` when an explicit budget must be verified. Place operations enforce weekly hours, kitchen cutoff, visit duration, reservation mode, party-size cost, currency, adjacent-stop timing and latest-end time.
 
 Locked stops are a hard agent boundary. A human can still explicitly remove a locked stop using the visible timeline control.
 

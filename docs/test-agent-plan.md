@@ -46,7 +46,7 @@ Run in both San Francisco and Stockholm:
 9. Remove unlocked and locked stops through the human UI. Confirm explicit human removal works and totals/routes recalculate.
 10. Remove the last stop and confirm the empty state returns.
 11. Build an event-only plan with `build_evening_plan`; then build or add a mixed plan. Confirm no extra approval step appears.
-12. Try an unavailable/expired event, closed Place, kitchen cutoff, reservation-required Place, overlapping stop, wrong currency, unknown event price and over-budget plan. Confirm each failure leaves the prior plan unchanged.
+12. Try an unavailable/expired event, closed Place, kitchen cutoff, reservation-required Place, overlapping stop and wrong currency. Confirm an unknown-price event is allowed with partial-price presentation when uncapped, then confirm unknown price and over-budget plans fail atomically when an explicit budget is supplied.
 13. Trigger a real or deterministic disrupted event and call `repair_plan`. Confirm only disrupted unlocked events change, while locked and unaffected stops remain byte-for-byte stable.
 14. Switch cities with a populated plan. Confirm the plan clears and the new city’s currency, inventory and map are used.
 15. Confirm the footer’s entire visible text is exactly `Local Buzz | 2026`.

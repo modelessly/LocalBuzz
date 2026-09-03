@@ -617,3 +617,19 @@ Candidate emphasis can remain outside a narrowed human result set until that res
 
 Status:
 Accepted.
+
+---
+
+## 2026-09-03: Make Budgets Explicit Rather Than City Defaults
+
+Decision:
+Stockholm and San Francisco begin without a spending cap. Plan constraints carry `budget` only when the user supplies one through a plan-building or add-stop action; an explicit `null` removes an inherited cap during an addition.
+
+Reasoning:
+The city-level 900 SEK and $75 defaults silently overrode user intent and rejected otherwise valid nights. Budget is personal context, not a fact Local Buzz should infer from the active city.
+
+Tradeoffs:
+Uncapped plans may include events with unknown prices, so the existing partial or unavailable price presentation remains essential. When a user supplies a cap, unknown prices and over-budget totals still fail atomically with `BUDGET_CONFLICT`.
+
+Status:
+Accepted.

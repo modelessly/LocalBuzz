@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { getCityDefinition } from "../data/cities";
 import { createInitialState, LocalBuzzActions } from "./store";
 import type { LocalBuzzState } from "./types";
 
@@ -22,6 +23,34 @@ describe("Local Buzz shared domain actions", () => {
     expect(initial).toMatchObject({ activeCityId: "san-francisco", currentPlan: null });
     expect(initial.happenings.every((item) => item.cityId === "san-francisco")).toBe(true);
     expect(initial.places).toHaveLength(33);
+    expect(getCityDefinition("san-francisco").constraints.budget).toBeUndefined();
+    expect(getCityDefinition("stockholm").constraints.budget).toBeUndefined();
+    expect(getCityDefinition("san-francisco").searchDefaults.maxPrice).toBeUndefined();
+    expect(getCityDefinition("stockholm").searchDefaults.maxPrice).toBeUndefined();
+  });
+
+  it("applies a budget only when the user supplies one", () => {
+    state = createInitialState("san-francisco");
+    actions = new LocalBuzzActions(() => state, (next) => { state = next; }, () => new Date("2026-08-30T12:00:00Z"));
+    const input = { placeId: "sf-foreign-cinema", purpose: "dinner" as const, plannedStart: "2026-08-30T18:30:00-07:00" };
+
+    expect(actions.addPlaceStop(input)).toMatchObject({ ok: true, plan: { constraints: { currency: "USD" } } });
+    expect(state.currentPlan?.constraints.budget).toBeUndefined();
+
+    state = createInitialState("san-francisco");
+    actions = new LocalBuzzActions(() => state, (next) => { state = next; }, () => new Date("2026-08-30T12:00:00Z"));
+    expect(actions.addPlaceStop({ ...input, budget: 75 })).toMatchObject({ ok: false, code: "BUDGET_CONFLICT" });
+    expect(state.currentPlan).toBeNull();
+  });
+
+  it("can remove an explicit budget while extending an existing plan", () => {
+    state = createInitialState("san-francisco");
+    actions = new LocalBuzzActions(() => state, (next) => { state = next; }, () => new Date("2026-09-02T12:00:00Z"));
+
+    expect(actions.addPlaceStop({ placeId: "sf-horsefeather", purpose: "dinner", plannedStart: "2026-09-02T18:00:00-07:00", budget: 200 })).toMatchObject({ ok: true });
+    expect(state.currentPlan?.constraints.budget).toBe(200);
+    expect(actions.addPlaceStop({ placeId: "sf-the-page", purpose: "drinks", plannedStart: "2026-09-02T20:00:00-07:00", budget: null })).toMatchObject({ ok: true });
+    expect(state.currentPlan?.constraints.budget).toBeUndefined();
   });
 
   it("adds a mixed dinner, event and drinks night directly with party-size pricing", () => {
@@ -167,12 +196,23 @@ describe("Local Buzz shared domain actions", () => {
     expect(state.currentPlan?.stops[0]).toMatchObject({ happeningId: "ron-sexsmith", status: "unavailable" });
   });
 
-  it("does not treat an unknown replacement price as zero", () => {
+  it("allows an unknown replacement price when the night has no budget cap", () => {
     const replacement = structuredClone(state.happenings.find((item) => item.id === "horse-opera")!);
     replacement.id = "unknown-price";
     replacement.commerce.priceMin = undefined;
     state = { ...state, happenings: [...state.happenings, replacement] };
     actions.buildEveningPlan(initialStops);
+    actions.applyLiveUpdate({ id: "update", happeningId: "fringe-closing", availability: "sold_out", label: "Simulation", source: "demo_simulation", appliedAt: "2026-08-30T18:05:00+02:00" });
+    expect(actions.repairPlan({ reason: "Unavailable", replacementHappeningIds: [replacement.id] })).toMatchObject({ ok: true });
+    expect(state.currentPlan?.stops[0]).toMatchObject({ happeningId: replacement.id });
+  });
+
+  it("does not treat an unknown replacement price as zero under an explicit budget", () => {
+    const replacement = structuredClone(state.happenings.find((item) => item.id === "horse-opera")!);
+    replacement.id = "unknown-price-budgeted";
+    replacement.commerce.priceMin = undefined;
+    state = { ...state, happenings: [...state.happenings, replacement] };
+    actions.buildEveningPlan(initialStops, undefined, 900);
     actions.applyLiveUpdate({ id: "update", happeningId: "fringe-closing", availability: "sold_out", label: "Simulation", source: "demo_simulation", appliedAt: "2026-08-30T18:05:00+02:00" });
     const before = structuredClone(state.currentPlan);
     expect(actions.repairPlan({ reason: "Unavailable", replacementHappeningIds: [replacement.id] })).toMatchObject({ ok: false, code: "BUDGET_CONFLICT", message: expect.stringContaining("unknown price") });

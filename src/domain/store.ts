@@ -25,7 +25,7 @@ import { isNightlyHappening, occurrenceEndMs } from "./happeningTiming";
 import { mergePulseIntoHappenings, pulseSourceStatus, type CityPulsePayload } from "./cityPulse";
 
 export type PlanHappeningInput = { happeningId: string; plannedStart: string };
-export type AddPlaceStopInput = { placeId: string; purpose: PlacePurpose; plannedStart: string };
+export type AddPlaceStopInput = { placeId: string; purpose: PlacePurpose; plannedStart: string; budget?: number | null };
 export type AddCustomPlaceStopInput = {
   name: string;
   purpose: PlacePurpose;
@@ -37,6 +37,7 @@ export type AddCustomPlaceStopInput = {
   availableFrom: string;
   availableUntil: string;
   note?: string;
+  budget?: number | null;
 };
 export type RepairInput = {
   reason: string;
@@ -296,7 +297,7 @@ export const recheckPlanOperationalReadiness = (
       if (!isNightlyHappening(happening)) return error("HAPPENING_UNAVAILABLE", `${happening.title} is not an eligible single-night event.`);
       if (unavailable.has(happening.status.availability)) return error("HAPPENING_UNAVAILABLE", `${happening.title} is ${happening.status.availability.replace("_", " ")} and cannot remain in the itinerary.`);
       if (occurrenceEndMs(happening) <= now.getTime()) return error("HAPPENING_UNAVAILABLE", `${happening.title} has already ended and cannot remain in the itinerary.`);
-      if (happening.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${happening.title} has no confirmed minimum price, so the hard budget cannot be checked.`);
+      if (plan.constraints.budget !== undefined && happening.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${happening.title} has no confirmed minimum price, so the explicit budget cannot be checked.`);
       const verifiedAt = Date.parse(happening.source.lastVerifiedAt ?? happening.source.fetchedAt ?? "");
       if (!Number.isFinite(verifiedAt) || now.getTime() - verifiedAt > 14 * 24 * 60 * 60_000) warnings.push(`${happening.title}'s source evidence is stale or undated.`);
       continue;
@@ -605,22 +606,28 @@ export class LocalBuzzActions {
     return placeItem ? { ok: true, place: placeItem } : error("INVALID_PLACE_ID", `Unknown place: ${placeId}`);
   }
 
-  private addAdditionalStop(stop: PlanStop, reason?: string, warnings: string[] = []): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
+  private addAdditionalStop(stop: PlanStop, reason?: string, warnings: string[] = [], budget?: number | null): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
     const state = this.read();
     const base = state.currentPlan;
     const city = getCityDefinition(state.activeCityId);
     const date = localDate(new Date(stop.plannedStart), city.timeZone);
-    const constraints = base?.constraints ?? {
+    const inheritedConstraints = base?.constraints ?? {
       ...city.constraints,
       latestEndTime: localDateTimeToIso(shiftIsoDate(date, 1), "00:00:00", city.timeZone),
     };
+    const constraints: PlanConstraints = { ...inheritedConstraints };
+    if (budget === null) delete constraints.budget;
+    else if (budget !== undefined) constraints.budget = budget;
+    if (constraints.budget !== undefined && (!Number.isFinite(constraints.budget) || constraints.budget < 0)) {
+      return error("INVALID_INPUT", "Budget must be a non-negative number or null for no cap.");
+    }
     const stops = [...(base?.stops ?? []), stop];
     if (hasTimeConflict(stops)) return error("TIME_CONFLICT", "The place stop overlaps another stop.");
     const unknown = unknownPriceStop(state, stops);
-    if (unknown && isHappeningStop(unknown)) return error("BUDGET_CONFLICT", `${findHappening(state, unknown.happeningId)?.title ?? unknown.happeningId} has no confirmed minimum price, so the hard budget cannot be checked.`);
+    if (constraints.budget !== undefined && unknown && isHappeningStop(unknown)) return error("BUDGET_CONFLICT", `${findHappening(state, unknown.happeningId)?.title ?? unknown.happeningId} has no confirmed minimum price, so the explicit budget cannot be checked.`);
     const plan = summarizePlan(state, stops, constraints, reason ?? base?.rationale);
     if (Date.parse(plan.endTime) > Date.parse(constraints.latestEndTime)) return error("TIME_CONFLICT", "The place visit ends after the night's latest-end constraint.");
-    if (plan.totalEstimatedCost > constraints.budget) return error("BUDGET_CONFLICT", `Estimated total is ${plan.totalEstimatedCost} ${constraints.currency}, above the ${constraints.budget} ${constraints.currency} budget.`);
+    if (constraints.budget !== undefined && plan.totalEstimatedCost > constraints.budget) return error("BUDGET_CONFLICT", `Estimated total is ${plan.totalEstimatedCost} ${constraints.currency}, above the ${constraints.budget} ${constraints.currency} budget.`);
     const readiness = recheckPlanOperationalReadiness(state, plan, this.now());
     if (!readiness.ok) return readiness;
     this.update((current) => ({
@@ -656,17 +663,16 @@ export class LocalBuzzActions {
       ...(placeItem.exceptionalHours.status === "unknown" ? [`Exceptional hours are unknown for ${placeItem.name}.`] : []),
       ...(placeItem.reservationMode === "recommended" ? [`A reservation is recommended at ${placeItem.name}.`] : []),
     ];
-    return this.addAdditionalStop(stop, reason, warnings);
+    return this.addAdditionalStop(stop, reason, warnings, input.budget);
   }
 
-  addHappeningStop(input: PlanHappeningInput, reason?: string): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
+  addHappeningStop(input: PlanHappeningInput & { budget?: number | null }, reason?: string): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
     const state = this.read();
     const happening = findHappening(state, input.happeningId);
     if (!happening) return error("INVALID_HAPPENING_ID", `Unknown happening: ${input.happeningId}`);
     if (!isNightlyHappening(happening)) return error("HAPPENING_UNAVAILABLE", `${happening.title} is not an eligible single-night event.`);
     if (unavailable.has(happening.status.availability)) return error("HAPPENING_UNAVAILABLE", `${happening.title} is unavailable.`);
     if (occurrenceEndMs(happening) <= this.now().getTime()) return error("HAPPENING_UNAVAILABLE", `${happening.title} has already ended.`);
-    if (happening.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${happening.title} has no confirmed minimum price, so the hard budget cannot be checked.`);
     if (!canAttendAt(happening, input.plannedStart)) return error("TIME_CONFLICT", `${happening.title} is not happening at the proposed start time.`);
     const base = state.currentPlan;
     const stop: PlanStop = {
@@ -674,7 +680,7 @@ export class LocalBuzzActions {
       kind: "happening", happeningId: input.happeningId, plannedStart: input.plannedStart,
       plannedEnd: plannedEnd(happening, input.plannedStart), locked: false, status: "active",
     };
-    return this.addAdditionalStop(stop, reason);
+    return this.addAdditionalStop(stop, reason, [], input.budget);
   }
 
   addCustomPlaceStop(input: AddCustomPlaceStopInput, reason?: string): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
@@ -698,7 +704,7 @@ export class LocalBuzzActions {
       },
       plannedStart: input.plannedStart, plannedEnd: new Date(end).toISOString(), locked: false, status: "active",
     };
-    return this.addAdditionalStop(stop, reason, ["Confirm the custom place assumptions before relying on this stop."]);
+    return this.addAdditionalStop(stop, reason, ["Confirm the custom place assumptions before relying on this stop."], input.budget);
   }
 
   replaceCityHappenings(
@@ -873,7 +879,7 @@ export class LocalBuzzActions {
   buildEveningPlan(
     stopInputs: PlanHappeningInput[],
     rationale?: string,
-    constraints?: PlanConstraints,
+    budget?: number | null,
   ): DomainResult<{ plan: EveningPlan; warnings: string[] }> {
     if (stopInputs.length === 0) return error("INVALID_INPUT", "A plan needs at least one stop.");
     const state = this.read();
@@ -885,7 +891,7 @@ export class LocalBuzzActions {
     const city = getCityDefinition(state.activeCityId);
     const earliestStart = Math.min(...stopInputs.map((input) => Date.parse(input.plannedStart)));
     const planDate = localDate(new Date(earliestStart), city.timeZone);
-    const planConstraints = constraints ?? {
+    const planConstraints: PlanConstraints = {
       ...city.constraints,
       latestEndTime: localDateTimeToIso(
         shiftIsoDate(planDate, 1),
@@ -893,11 +899,12 @@ export class LocalBuzzActions {
         city.timeZone,
       ),
     };
+    if (budget !== undefined && budget !== null) planConstraints.budget = budget;
     if (!Number.isFinite(Date.parse(planConstraints.latestEndTime))) {
       return error("INVALID_INPUT", "The latest end time must be a valid ISO date-time.");
     }
-    if (planConstraints.currency !== city.currency || !Number.isInteger(planConstraints.partySize) || planConstraints.partySize < 1 || planConstraints.budget < 0) {
-      return error("INVALID_INPUT", "Plan constraints must use the active city's currency, a positive party size and a non-negative budget.");
+    if (planConstraints.currency !== city.currency || !Number.isInteger(planConstraints.partySize) || planConstraints.partySize < 1 || (planConstraints.budget !== undefined && (!Number.isFinite(planConstraints.budget) || planConstraints.budget < 0))) {
+      return error("INVALID_INPUT", "Plan constraints must use the active city's currency, a positive party size and an optional non-negative budget.");
     }
     const stops: PlanStop[] = [];
     for (const [index, input] of stopInputs.entries()) {
@@ -908,7 +915,7 @@ export class LocalBuzzActions {
         return error("HAPPENING_UNAVAILABLE", `${happening.title} is unavailable.`);
       }
       if (occurrenceEndMs(happening) <= this.now().getTime()) return error("HAPPENING_UNAVAILABLE", `${happening.title} has already ended.`);
-      if (happening.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${happening.title} has no confirmed minimum price, so the hard budget cannot be checked.`);
+      if (planConstraints.budget !== undefined && happening.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${happening.title} has no confirmed minimum price, so the explicit budget cannot be checked.`);
       if (!canAttendAt(happening, input.plannedStart)) {
         return error(
           "TIME_CONFLICT",
@@ -930,7 +937,7 @@ export class LocalBuzzActions {
       return error("TIME_CONFLICT", "At least two proposed stops overlap.", "Adjust planned start times.");
     }
     const unknown = unknownPriceStop(state, stops);
-    if (unknown && isHappeningStop(unknown)) return error("BUDGET_CONFLICT", `${findHappening(state, unknown.happeningId)?.title ?? unknown.happeningId} has no confirmed minimum price, so the hard budget cannot be checked.`);
+    if (planConstraints.budget !== undefined && unknown && isHappeningStop(unknown)) return error("BUDGET_CONFLICT", `${findHappening(state, unknown.happeningId)?.title ?? unknown.happeningId} has no confirmed minimum price, so the explicit budget cannot be checked.`);
     const plan = summarizePlan(state, stops, planConstraints, rationale);
     if (Date.parse(plan.endTime) > Date.parse(planConstraints.latestEndTime)) {
       return error(
@@ -939,7 +946,7 @@ export class LocalBuzzActions {
         "Remove or retime the final stop.",
       );
     }
-    if (plan.totalEstimatedCost > planConstraints.budget) {
+    if (planConstraints.budget !== undefined && plan.totalEstimatedCost > planConstraints.budget) {
       return error(
         "BUDGET_CONFLICT",
         `Estimated total is ${plan.totalEstimatedCost} ${planConstraints.currency}, above the ${planConstraints.budget} ${planConstraints.currency} budget.`,
@@ -1060,7 +1067,7 @@ export class LocalBuzzActions {
       return error("HAPPENING_UNAVAILABLE", `${replacement.title} is unavailable.`);
     }
     if (occurrenceEndMs(replacement) <= this.now().getTime()) return error("HAPPENING_UNAVAILABLE", `${replacement.title} has already ended.`);
-    if (replacement.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${replacement.title} has no confirmed minimum price, so the hard budget cannot be checked.`);
+    if (sourcePlan.constraints.budget !== undefined && replacement.commerce.priceMin === undefined) return error("BUDGET_CONFLICT", `${replacement.title} has no confirmed minimum price, so the explicit budget cannot be checked.`);
     const start = replacement.timing.start;
     if (!canAttendAt(replacement, start)) {
       return error(
@@ -1082,7 +1089,7 @@ export class LocalBuzzActions {
     if (Date.parse(plan.endTime) > Date.parse(plan.constraints.latestEndTime)) {
       return error("TIME_CONFLICT", "The replacement would end after the night’s latest-end constraint.");
     }
-    if (plan.totalEstimatedCost > plan.constraints.budget) {
+    if (plan.constraints.budget !== undefined && plan.totalEstimatedCost > plan.constraints.budget) {
       return error("BUDGET_CONFLICT", "The replacement would exceed the night’s budget.");
     }
     this.update((current) => ({
@@ -1129,9 +1136,11 @@ export class LocalBuzzActions {
       .filter((item) => !unavailable.has(item.status.availability))
       .filter((item) => occurrenceEndMs(item) > this.now().getTime())
       .filter((item) => !base.stops.some((stop) => isHappeningStop(stop) && stop.happeningId === item.id));
-    const knownPriceReplacements = replacements.filter((item) => item.commerce.priceMin !== undefined);
-    if (replacements.length > 0 && knownPriceReplacements.length === 0) {
-      return error("BUDGET_CONFLICT", "Every supplied replacement has an unknown price, so the hard budget cannot be confirmed.");
+    const eligibleReplacements = base.constraints.budget === undefined
+      ? replacements
+      : replacements.filter((item) => item.commerce.priceMin !== undefined);
+    if (base.constraints.budget !== undefined && replacements.length > 0 && eligibleReplacements.length === 0) {
+      return error("BUDGET_CONFLICT", "Every supplied replacement has an unknown price, so the explicit budget cannot be confirmed.");
     }
 
     const repairedStops = [...base.stops];
@@ -1141,7 +1150,7 @@ export class LocalBuzzActions {
       const targetIndex = repairedStops.findIndex((stop) => stop.id === target.id);
       const previous = targetIndex > 0 ? repairedStops[targetIndex - 1] : undefined;
       const next = targetIndex < repairedStops.length - 1 ? repairedStops[targetIndex + 1] : undefined;
-      const replacement = knownPriceReplacements.find((candidate) => {
+      const replacement = eligibleReplacements.find((candidate) => {
         if (localDate(new Date(candidate.timing.start), city.timeZone) !== localDate(new Date(target.plannedStart), city.timeZone)) {
           return false;
         }
@@ -1175,7 +1184,7 @@ export class LocalBuzzActions {
       changedStopIds.push(target.id);
     }
     const plan = summarizePlan(state, repairedStops, base.constraints, input.reason);
-    if (plan.totalEstimatedCost > plan.constraints.budget) {
+    if (plan.constraints.budget !== undefined && plan.totalEstimatedCost > plan.constraints.budget) {
       return error("BUDGET_CONFLICT", "The available repair would exceed the night’s budget.");
     }
     const readiness = recheckPlanOperationalReadiness(state, plan, this.now());

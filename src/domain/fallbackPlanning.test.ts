@@ -18,7 +18,7 @@ describe.each(["stockholm", "san-francisco"] as const)("%s Place fallback", (cit
     expect(state.visiblePlaceIds.length).toBeGreaterThanOrEqual(12);
   });
 
-  it("adds the default two-stop fallback within hours, time and party budget", () => {
+  it("adds the default two-stop fallback within hours and time without an implicit budget", () => {
     const { actions, read } = setup(cityId);
     const city = getCityDefinition(cityId);
     for (const stop of city.placeFallbackPlan) {
@@ -32,8 +32,8 @@ describe.each(["stockholm", "san-francisco"] as const)("%s Place fallback", (cit
     }
     const plan = read().currentPlan;
     expect(plan?.stops).toHaveLength(2);
-    expect(plan?.constraints).toMatchObject({ partySize: 2, currency: city.currency, budget: city.constraints.budget });
-    expect(plan?.totalEstimatedCost).toBeLessThanOrEqual(city.constraints.budget);
+    expect(plan?.constraints).toMatchObject({ partySize: 2, currency: city.currency });
+    expect(plan?.constraints.budget).toBeUndefined();
     expect(new Date(plan?.endTime ?? 0).getTime()).toBeLessThanOrEqual(new Date(plan?.constraints.latestEndTime ?? 0).getTime());
     expect(plan?.stops[0].plannedEnd).not.toBe(plan?.stops[1].plannedStart);
     expect(Date.parse(plan?.stops[0].plannedEnd ?? "")).toBeLessThan(Date.parse(plan?.stops[1].plannedStart ?? ""));
@@ -46,7 +46,6 @@ describe.each(["stockholm", "san-francisco"] as const)("%s Place fallback", (cit
     const result = actions.searchPlaces({
       purposes: ["drinks"],
       openAt,
-      maxPrice: city.constraints.budget / city.constraints.partySize,
       near: city.constraints.startLocation,
       maxDistanceKm: city.searchDefaults.maxDistanceKm,
       maxResults: 33,

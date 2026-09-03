@@ -17,6 +17,14 @@ const toolError = (message: string) => ({
   suggestion: "Call the tool again with arguments matching its input schema.",
 });
 
+const budgetSchema = {
+  type: ["number", "null"],
+  minimum: 0,
+  description: "Optional total party budget. Omit or use null when the user has not set a spending cap.",
+} as const;
+
+const budgetFrom = (value: unknown) => value === null ? null : typeof value === "number" ? value : undefined;
+
 const sourceTypes = ["official_page", "venue_calendar", "ticket_page", "editorial_page", "other_public_page"] as const;
 const evidenceFrom = (value: unknown): DiscoveryLeadEvidence[] => Array.isArray(value) ? value.flatMap((item) => {
   const entry = objectInput(item);
@@ -264,13 +272,13 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
     description: "Add a dinner, quick-bite or drinks stop to the active itinerary. The shared domain validates purpose, hours, duration, party-size cost, currency, overlap and latest end before updating the visible plan.",
     inputSchema: { type: "object", properties: {
       placeId: { type: "string" }, purpose: { type: "string", enum: ["dinner", "quick_bite", "drinks", "late_drinks"] },
-      plannedStart: { type: "string", format: "date-time" }, reason: { type: "string" },
+      plannedStart: { type: "string", format: "date-time" }, budget: budgetSchema, reason: { type: "string" },
     }, required: ["placeId", "purpose", "plannedStart"], additionalProperties: false },
     annotations: { readOnlyHint: false, untrustedContentHint: false },
     execute(input) {
       const value = objectInput(input);
       if (typeof value.placeId !== "string" || typeof value.purpose !== "string" || typeof value.plannedStart !== "string") return toolError("placeId, purpose and plannedStart are required.");
-      return actions.addPlaceStop({ placeId: value.placeId, purpose: value.purpose as PlacePurpose, plannedStart: value.plannedStart }, typeof value.reason === "string" ? value.reason : undefined);
+      return actions.addPlaceStop({ placeId: value.placeId, purpose: value.purpose as PlacePurpose, plannedStart: value.plannedStart, budget: budgetFrom(value.budget) }, typeof value.reason === "string" ? value.reason : undefined);
     },
   },
   {
@@ -281,28 +289,28 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
       name: { type: "string" }, purpose: { type: "string", enum: ["dinner", "quick_bite", "drinks", "late_drinks"] }, plannedStart: { type: "string", format: "date-time" },
       location: { type: "object", properties: { lat: { type: "number" }, lng: { type: "number" }, address: { type: "string" }, neighborhood: { type: "string" } }, required: ["lat", "lng", "address", "neighborhood"], additionalProperties: false },
       typicalVisitDurationMinutes: { type: "integer", minimum: 15 }, pricePerPerson: { type: "number", minimum: 0 }, currency: { type: "string", enum: ["SEK", "USD"] },
-      availableFrom: { type: "string", format: "date-time" }, availableUntil: { type: "string", format: "date-time" }, note: { type: "string" }, reason: { type: "string" },
+      availableFrom: { type: "string", format: "date-time" }, availableUntil: { type: "string", format: "date-time" }, budget: budgetSchema, note: { type: "string" }, reason: { type: "string" },
     }, required: ["name", "purpose", "plannedStart", "location", "typicalVisitDurationMinutes", "pricePerPerson", "currency", "availableFrom", "availableUntil"], additionalProperties: false },
     annotations: { readOnlyHint: false, untrustedContentHint: true },
     execute(input) {
       const value = objectInput(input); const location = objectInput(value.location);
       if (typeof value.name !== "string" || typeof value.purpose !== "string" || typeof value.plannedStart !== "string" || typeof value.typicalVisitDurationMinutes !== "number" || typeof value.pricePerPerson !== "number" || (value.currency !== "SEK" && value.currency !== "USD") || typeof value.availableFrom !== "string" || typeof value.availableUntil !== "string" || typeof location.lat !== "number" || typeof location.lng !== "number" || typeof location.address !== "string" || typeof location.neighborhood !== "string") return toolError("Custom place fields do not match the required schema.");
-      const custom: AddCustomPlaceStopInput = { name: value.name, purpose: value.purpose as PlacePurpose, plannedStart: value.plannedStart, location: { lat: location.lat, lng: location.lng, address: location.address, neighborhood: location.neighborhood }, typicalVisitDurationMinutes: value.typicalVisitDurationMinutes, pricePerPerson: value.pricePerPerson, currency: value.currency, availableFrom: value.availableFrom, availableUntil: value.availableUntil, note: typeof value.note === "string" ? value.note : undefined };
+      const custom: AddCustomPlaceStopInput = { name: value.name, purpose: value.purpose as PlacePurpose, plannedStart: value.plannedStart, location: { lat: location.lat, lng: location.lng, address: location.address, neighborhood: location.neighborhood }, typicalVisitDurationMinutes: value.typicalVisitDurationMinutes, pricePerPerson: value.pricePerPerson, currency: value.currency, availableFrom: value.availableFrom, availableUntil: value.availableUntil, budget: budgetFrom(value.budget), note: typeof value.note === "string" ? value.note : undefined };
       return actions.addCustomPlaceStop(custom, typeof value.reason === "string" ? value.reason : undefined);
     },
   },
   {
     name: "add_happening_stop",
     title: "Add an event stop",
-    description: "Add one selected event to the active itinerary. The event must be available, priced, within its occurrence window, non-overlapping and within the active city budget and end-time constraints.",
+    description: "Add one selected event to the active itinerary. The event must be available, within its occurrence window, non-overlapping and within any explicit budget and end-time constraints.",
     inputSchema: { type: "object", properties: {
-      happeningId: { type: "string" }, plannedStart: { type: "string", format: "date-time" }, reason: { type: "string" },
+      happeningId: { type: "string" }, plannedStart: { type: "string", format: "date-time" }, budget: budgetSchema, reason: { type: "string" },
     }, required: ["happeningId", "plannedStart"], additionalProperties: false },
     annotations: { readOnlyHint: false, untrustedContentHint: false },
     execute(input) {
       const value = objectInput(input);
       if (typeof value.happeningId !== "string" || typeof value.plannedStart !== "string") return toolError("happeningId and plannedStart are required.");
-      return actions.addHappeningStop({ happeningId: value.happeningId, plannedStart: value.plannedStart }, typeof value.reason === "string" ? value.reason : undefined);
+      return actions.addHappeningStop({ happeningId: value.happeningId, plannedStart: value.plannedStart, budget: budgetFrom(value.budget) }, typeof value.reason === "string" ? value.reason : undefined);
     },
   },
   {
@@ -327,6 +335,7 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
             additionalProperties: false,
           },
         },
+        budget: budgetSchema,
         rationale: { type: "string" },
       },
       required: ["stops"],
@@ -350,7 +359,7 @@ export const createWebMcpTools = (actions: LocalBuzzActions): WebMcpTool[] => [
       if (stops.length !== value.stops.length || !stops.length) {
         return toolError("Every stop needs a happeningId and ISO plannedStart.");
       }
-      return actions.buildEveningPlan(stops, typeof value.rationale === "string" ? value.rationale : undefined);
+      return actions.buildEveningPlan(stops, typeof value.rationale === "string" ? value.rationale : undefined, budgetFrom(value.budget));
     },
   },
   {

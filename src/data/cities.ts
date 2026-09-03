@@ -19,7 +19,7 @@ export type CityDefinition = {
   agentPrompt: string;
   searchDefaults: {
     query: string;
-    maxPrice: number;
+    maxPrice?: number;
     maxDistanceKm: number;
   };
   happenings: Happening[];
@@ -42,15 +42,13 @@ const definitions: Record<CityId, CityDefinition> = {
     mapCenter: [18.071, 59.325],
     mapZoom: 12.35,
     constraints: {
-      budget: 900,
       currency: "SEK",
       partySize: 2,
       startLocation: { lat: 59.319, lng: 18.072, label: "Slussen" },
     },
-    agentPrompt: "Build a surprising night near Slussen for two under 900 SEK, done by midnight.",
+    agentPrompt: "Build a surprising night near Slussen for two, done by midnight.",
     searchDefaults: {
       query: "unexpected music",
-      maxPrice: 350,
       maxDistanceKm: 8,
     },
     happenings,
@@ -78,15 +76,13 @@ const definitions: Record<CityId, CityDefinition> = {
     mapCenter: [-122.438, 37.774],
     mapZoom: 12,
     constraints: {
-      budget: 75,
       currency: "USD",
       partySize: 2,
       startLocation: { lat: 37.7599, lng: -122.4148, label: "Mission" },
     },
-    agentPrompt: "Build an unexpected San Francisco night near Mission for two under $75, done by midnight.",
+    agentPrompt: "Build an unexpected San Francisco night near Mission for two, done by midnight.",
     searchDefaults: {
       query: "local music",
-      maxPrice: 90,
       maxDistanceKm: 12,
     },
     happenings: sanFranciscoHappenings,

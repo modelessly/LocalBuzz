@@ -3,8 +3,8 @@ import { createInitialState, LocalBuzzActions } from "../domain/store";
 import type { LocalBuzzState } from "../domain/types";
 import { createWebMcpTools, registerWebMcp } from "./register";
 
-const setup = () => {
-  let state: LocalBuzzState = createInitialState("stockholm");
+const setup = (cityId: "stockholm" | "san-francisco" = "stockholm") => {
+  let state: LocalBuzzState = createInitialState(cityId);
   const actions = new LocalBuzzActions(() => state, (next) => { state = next; }, () => new Date("2026-08-30T12:00:00Z"));
   return { actions, read: () => state };
 };
@@ -33,6 +33,36 @@ describe("WebMCP registration", () => {
     await tools.get("add_place_stop")?.execute({ placeId: "sthlm-tjoget", purpose: "drinks", plannedStart: "2026-08-30T19:30:00+02:00" }, options);
     expect(read().currentPlan?.stops.map((stop) => stop.kind)).toEqual(["happening", "place"]);
     expect(actions.readCurrentPlan()).toMatchObject({ ok: true, currentPlan: { stops: [{ status: "active" }, { status: "active" }] } });
+  });
+
+  it("has no implicit city budget and enforces an explicitly supplied budget", async () => {
+    const { actions, read } = setup("san-francisco");
+    const tools = new Map(createWebMcpTools(actions).map((tool) => [tool.name, tool]));
+    const options = { signal: new AbortController().signal };
+    const input = { placeId: "sf-foreign-cinema", purpose: "dinner", plannedStart: "2026-08-30T18:30:00-07:00" };
+
+    expect(await tools.get("add_place_stop")?.execute(input, options)).toMatchObject({ ok: true });
+    expect(read().currentPlan?.constraints.budget).toBeUndefined();
+
+    const budgeted = setup("san-francisco");
+    const budgetedTool = createWebMcpTools(budgeted.actions).find((tool) => tool.name === "add_place_stop");
+    expect(await budgetedTool?.execute({ ...input, budget: 75 }, options)).toMatchObject({ ok: false, code: "BUDGET_CONFLICT" });
+    expect(budgeted.read().currentPlan).toBeNull();
+  });
+
+  it("passes an optional user budget through build_evening_plan", async () => {
+    const uncapped = setup();
+    const uncappedTool = createWebMcpTools(uncapped.actions).find((tool) => tool.name === "build_evening_plan");
+    const options = { signal: new AbortController().signal };
+    const input = { stops: [{ happeningId: "fringe-closing", plannedStart: "2026-08-30T17:30:00+02:00" }] };
+
+    expect(await uncappedTool?.execute(input, options)).toMatchObject({ ok: true });
+    expect(uncapped.read().currentPlan?.constraints.budget).toBeUndefined();
+
+    const budgeted = setup();
+    const budgetedTool = createWebMcpTools(budgeted.actions).find((tool) => tool.name === "build_evening_plan");
+    expect(await budgetedTool?.execute({ ...input, budget: 200 }, options)).toMatchObject({ ok: false, code: "BUDGET_CONFLICT" });
+    expect(budgeted.read().currentPlan).toBeNull();
   });
 
   it("adds an event, locks, unlocks and removes through direct tools", async () => {

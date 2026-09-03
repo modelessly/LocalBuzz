@@ -203,7 +203,7 @@ export type SearchFilters = {
 };
 
 export type PlanConstraints = {
-  budget: number;
+  budget?: number;
   currency: CurrencyCode;
   latestEndTime: string;
   partySize: number;

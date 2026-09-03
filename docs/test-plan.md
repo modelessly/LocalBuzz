@@ -17,6 +17,7 @@ Validate the product behavior required for the demo and WebMCP judging criteria.
 
 - builds the canonical plan directly without partial mutation on failure
 - calculates estimated total cost
+- starts uncapped in both cities and enforces a budget only when explicitly supplied
 - rejects unknown happening IDs
 - flags obvious time conflicts
 
@@ -87,6 +88,7 @@ Call:
 - locked conflict
 - no active plan
 - no staged changes
+- unknown-price event under an explicit budget
 
 ## Manual acceptance tests
 

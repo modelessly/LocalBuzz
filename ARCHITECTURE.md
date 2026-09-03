@@ -119,7 +119,7 @@ type CityContext = {
   currentTime: string
   startLocation?: GeoPoint
   endLocation?: GeoPoint
-  budget?: number
+  budget?: number // absent means no spending cap
   currency: "SEK" | "USD"
   latestEndTime?: string
   partySize?: number
@@ -370,4 +370,4 @@ The ingestion endpoint awaits all permitted collectors, including the server-onl
 
 Operational inventory metadata remains in shared state and WebMCP results, but is not rendered as a primary consumer-facing status strip. Source attribution stays attached to event and Place records.
 
-Timeline price presentation resolves the evidence for every referenced stop rather than trusting a numeric zero. Incomplete totals are labelled partial or unavailable without weakening the planning engine's hard-budget rejection.
+Timeline price presentation resolves the evidence for every referenced stop rather than trusting a numeric zero. Incomplete totals are labelled partial or unavailable. Budget validation is activated only when the user supplies a cap; without one, unknown prices remain visible uncertainty rather than blocking the itinerary.

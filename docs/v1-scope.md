@@ -15,7 +15,7 @@ Starting state:
 - San Francisco
 - near Mission
 - current local time
-- $75 budget
+- no budget cap unless the user supplies one
 - end by midnight
 
 Stockholm remains selectable from the city menu for the original near-Slussen contest screenplay.
