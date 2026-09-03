@@ -42,6 +42,7 @@ describe("shared-state presentation copy", () => {
     expect(styles).toMatch(/\.workspace\s*\{[^}]*gap:\s*24px[^}]*background:\s*transparent/s);
     expect(styles).toMatch(/\.map-panel, \.night-panel\s*\{[^}]*overflow:\s*hidden[^}]*contain:\s*paint/s);
     expect(styles).not.toMatch(/\.workspace::(?:before|after)/);
+    expect(styles.match(/\.topbar\s*\{([^}]*)\}/)?.[1]).not.toMatch(/border-bottom/);
   });
 
   it("keeps consumer empty states resettable and prevents tablet header overflow", () => {

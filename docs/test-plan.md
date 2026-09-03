@@ -222,6 +222,8 @@ Live checks run exactly one uncached two-pass cycle per city and report only nor
 
 Automated coverage verifies independent panel containment; simplified city headings; `Unlocked`/`Locked` state labels and action-oriented accessible names; persistent 44-pixel Remove controls; Stockholm and San Francisco plan summaries; estimated-end descriptions; truthful ticket/reservation/official-site link fallbacks; `Options` language; absence of named admin copy; city-timezone and cross-midnight date formatting; additive event/Place candidate highlighting; human-search narrowing and restoration without plan/lock mutation; removal of the Shared State strip; and the exact footer.
 
+Panel independence also requires that the header own no full-width bottom border aligned with the card tops; the gutter must expose uninterrupted page background.
+
 Candidate IDs must survive human search/filter narrowing and clearing, then reset on city switch. Price-presentation fixtures cover complete, partially known and entirely unknown totals. Date fixtures cover abbreviated visual output plus full accessible descriptions, and empty-result source checks cover both resettable searches and provider-incomplete windows.
 
 Manual verification recreates the available equivalent of the Stockholm Surfers/concert itinerary, repeats locale-sensitive behavior in San Francisco, checks panel separation at desktop and stacked widths, reads `read_current_plan` around lock changes, and confirms agent highlights never collapse the time-window listing. When live inventory lacks a named fixture, report that limitation and use deterministic component/domain coverage rather than manufacturing a record.

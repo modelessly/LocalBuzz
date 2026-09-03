@@ -62,7 +62,6 @@ button:disabled { cursor: not-allowed; }
   grid-template-columns: minmax(250px, 1fr) auto;
   align-items: center;
   gap: 54px;
-  border-bottom: 1px solid hsl(var(--border) / .78);
 }
 
 .brand { display: block; }

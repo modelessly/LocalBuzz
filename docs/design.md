@@ -236,7 +236,7 @@ The itinerary does not render state as colored pills, chips or badges. Agent con
 
 ## Consumer options and itinerary controls
 
-The map and Your Night are independent clipped cards with page background visible through their desktop gap and ordinary stacking on narrow screens. City headings use only the city name. The timeline's lock control communicates current state (`Unlocked` or `Locked`) while its accessible name and tooltip communicate the resulting action. Remove remains permanently adjacent, destructive and at least 44 CSS pixels high.
+The map and Your Night are independent clipped cards with page background visible through their desktop gap and ordinary stacking on narrow screens. The header must not draw a page-wide bottom divider at the same height as their top edges; only each card owns its outline. City headings use only the city name. The timeline's lock control communicates current state (`Unlocked` or `Locked`) while its accessible name and tooltip communicate the resulting action. Remove remains permanently adjacent, destructive and at least 44 CSS pixels high.
 
 The plan summary contains only the first-to-last stop time range and estimated party total. Stockholm uses a 24-hour clock and San Francisco uses AM/PM; derived final-stop durations are identified accessibly as estimates. Event booking/source links and Place reservation/official-site links are secondary actions with labels that match the actual URL type.
 
