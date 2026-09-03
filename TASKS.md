@@ -110,8 +110,8 @@
 ### Submission
 
 - [x] Public live Worker URL with WebMCP discovery verified.
-- [ ] Attach and verify `localbuzz.modeless.io` after explicit shared-domain approval.
-- [ ] Public repository.
+- [x] Attach and verify `localbuzz.modeless.io` after explicit shared-domain approval.
+- [x] Public repository.
 - [x] Open-source license visible.
 - [x] README setup instructions.
 - [ ] Demo video <3 minutes.

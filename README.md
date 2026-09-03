@@ -128,7 +128,7 @@ Measure current inventory gaps with `npm run data:coverage`. Run one explicit, c
 | `remove_plan_stop` | Removes an unlocked stop. |
 | `repair_plan` | Directly replaces only disrupted, unlocked stops. |
 
-Tools use strict JSON schemas, structured errors, and abort-signal-owned registration. Unsupported browsers still get the complete human experience.
+Tools use strict JSON schemas, structured errors, and abort-signal-owned registration. Stockholm and San Francisco start without a spending cap; plan-building and add-stop tools apply budget validation only when the user supplies an optional total-party `budget`. Unsupported browsers still get the complete human experience.
 
 The conversation does not happen inside Local Buzz. The user talks to their personal agent in a WebMCP-aware browser's agent panel. While this page is open, the browser discovers the tools above; the agent calls them and the resulting candidates or current plan appear in the same map and timeline the human can edit.
 
@@ -152,12 +152,15 @@ The fixtures are contest snapshots verified on August 30, 2026—not a claim of 
 
 The production target is `https://localbuzz.modeless.io`.
 
-Verified public deployment:
+Verified production deployment:
 
-- [https://local-buzz.alsmith.workers.dev](https://local-buzz.alsmith.workers.dev)
-- HTTP 200
-- the earlier deployed build exposed eight WebMCP tools; the current local contract registers fifteen and requires a fresh deployment verification before that count is claimed publicly
+- [https://localbuzz.modeless.io](https://localbuzz.modeless.io)
+- HTTP 200 with a valid Cloudflare-managed HTTPS custom domain
+- all sixteen current WebMCP tools discovered in the deployed page
+- `read_current_plan` completed successfully against the deployed page
 - `Permissions-Policy: tools=(self)` confirmed on the deployed response
+
+The earlier `https://local-buzz.alsmith.workers.dev` preview is no longer the production target; the current custom-domain deployment disables the `workers.dev` route by default.
 
 The repository uses Cloudflare static assets through `wrangler.jsonc`, with the existing Vite `dist` output:
 

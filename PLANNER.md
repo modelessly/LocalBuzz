@@ -6,6 +6,15 @@ Ship a coherent Local Buzz WebMCP prototype before the September 3, 2026 challen
 
 The build is driven backward from the demo.
 
+## Production status — September 3
+
+- `https://localbuzz.modeless.io` is attached as the sole custom-domain trigger for the `local-buzz` Cloudflare Worker.
+- The apex `modeless.io` site and `www` were not changed.
+- The release gate passed: lint, both TypeScript checks, 181 tests, and the Vite production build.
+- HTTPS, production assets, `Permissions-Policy: tools=(self)`, the rendered San Francisco experience, and all sixteen WebMCP tools were verified on the custom domain.
+- A deployed `read_current_plan` call succeeded and reported fresh Ticketmaster inventory.
+- The optional xAI scheduled-event collector reported a bounded timeout, and a direct social-pulse smoke request did not return within 90 seconds. The app remained responsive with fresh Ticketmaster inventory and no browser console warnings or errors.
+
 ## Current status — August 30
 
 The complete local contest loop is implemented and verified in the ChatGPT in-app browser:
@@ -27,15 +36,14 @@ The complete local contest loop is implemented and verified in the ChatGPT in-ap
 
 ## Next
 
-1. Explicitly approve and attach the shared `localbuzz.modeless.io` route.
-2. Run the exact path five consecutive times on the custom-domain URL.
-3. Verify WebMCP in Google Chrome with challenge testing enabled.
+1. Run the exact path five consecutive times on the custom-domain URL.
+2. Verify WebMCP in Google Chrome with challenge testing enabled.
+3. Investigate the optional xAI collector/pulse latency without blocking the current Ticketmaster-backed production experience.
 4. Record the sub-three-minute demo and complete the Devpost submission.
 
 ## Blocked externally
 
-- Custom-domain attachment needs explicit authorization because it changes routing on the shared `modeless.io` zone.
-- Public repository setup requires changing the generic harness remote or creating the intended repository.
+None.
 
 ## Critical path
 

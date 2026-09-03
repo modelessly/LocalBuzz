@@ -70,6 +70,14 @@ Do not add these unless the product brief explicitly requires them:
 - Public Worker deployed at `https://local-buzz.alsmith.workers.dev`; HTTP 200, permissions policy, and WebMCP discovery verified.
 - Remaining external work: explicitly authorized `localbuzz.modeless.io` attachment, Chrome challenge-mode verification, repository publication, and submission media.
 
+## Verified Production State — 2026-09-03
+
+- The user explicitly approved the exact `localbuzz.modeless.io` shared-zone change and prohibited changes to the rest of `modeless.io`.
+- The verified build was deployed as Cloudflare Worker version `1a490d25-1966-4453-9a0b-a2c6634d3b7d` with only `localbuzz.modeless.io` as its custom-domain trigger.
+- Public DNS, HTTPS, production assets, `Permissions-Policy: tools=(self)`, the rendered San Francisco page, sixteen WebMCP tools, and `read_current_plan` were verified.
+- The apex Modeless site remained healthy and was not changed.
+- Fresh Ticketmaster inventory loaded in production. The optional xAI event collector timed out safely, and the social-pulse smoke request exceeded 90 seconds without blocking the page or WebMCP.
+
 ## Notes For Future Agents
 
 - If this file conflicts with `PRODUCT.md`, the product brief wins.
