@@ -24,6 +24,10 @@ export const PULSE_KINDS = [
 export type PulseKind = (typeof PULSE_KINDS)[number];
 export type PulseCityId = "stockholm" | "san-francisco";
 export type PulseBuzzLabel = "Quiet" | "Starting" | "Buzzing" | "Hot Now" | "Very Hot";
+export type PulseBuzzBreakdown = {
+  timing: number; freshness: number; social: number; corroboration: number;
+  sourceDiversity: number; actionability: number; convenience: number; contextCompatibility: number;
+};
 
 export interface PulseSignal {
   id: string;
@@ -55,6 +59,7 @@ export interface PulseSignal {
   actionableNow: boolean;
   buzzScore: number;
   buzzLabel: PulseBuzzLabel;
+  buzzBreakdown: PulseBuzzBreakdown;
 }
 
 export interface PulsePayload {

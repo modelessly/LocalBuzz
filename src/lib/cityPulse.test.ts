@@ -8,7 +8,7 @@ const payload = (cityId: "stockholm" | "san-francisco", location: string): CityP
   signals: [{ id: `${cityId}-pulse-one`, kind: "live_signal", title: "Live activity", summary: "Activity is underway.", category: "music",
     location: { name: location, neighborhood: "Central" }, timing: { firstSeen: "2026-09-03T17:30:00.000Z", latestSeen: "2026-09-03T17:50:00.000Z", likelyActiveUntil: "2026-09-03T20:00:00.000Z" },
     social: { evidenceCount: 2, independentSourceCount: 2, sourceAccounts: ["one", "two"], confidence: 0.8, sourceUrls: ["https://x.com/one/status/1", "https://x.com/two/status/2"] },
-    tags: ["live"], reasonActionable: "Two sources say it is underway.", freshnessMinutes: 10, actionableNow: true, buzzScore: 81, buzzLabel: "Very Hot" }],
+    tags: ["live"], reasonActionable: "Two sources say it is underway.", freshnessMinutes: 10, actionableNow: true, buzzScore: 81, buzzLabel: "Very Hot", buzzBreakdown: { timing: 20, freshness: 15, social: 8, corroboration: 8, sourceDiversity: 6, actionability: 15, convenience: 5, contextCompatibility: 5 } }],
 });
 
 describe("city pulse adapter", () => {

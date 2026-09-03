@@ -1,4 +1,4 @@
-import type { PulseBuzzLabel, PulseSignal } from "./types";
+import type { PulseBuzzBreakdown, PulseBuzzLabel, PulseSignal } from "./types";
 
 export const BUZZ_SCORE_WEIGHTS = {
   timing: 20,
@@ -22,7 +22,7 @@ export function buzzLabel(score: number): PulseBuzzLabel {
 export function scorePulseSignal(
   signal: Pick<PulseSignal, "kind" | "category" | "location" | "timing" | "social" | "reasonActionable">,
   now: Date,
-): Pick<PulseSignal, "freshnessMinutes" | "actionableNow" | "buzzScore" | "buzzLabel"> {
+): Pick<PulseSignal, "freshnessMinutes" | "actionableNow" | "buzzScore" | "buzzLabel" | "buzzBreakdown"> {
   const latestSeenMs = Date.parse(signal.timing.latestSeen);
   const freshnessMinutes = Math.max(0, Math.round((now.getTime() - latestSeenMs) / 60_000));
   const activeUntilMs = signal.timing.likelyActiveUntil ? Date.parse(signal.timing.likelyActiveUntil) : Number.NaN;
@@ -36,6 +36,7 @@ export function scorePulseSignal(
   const actionability = actionableNow && signal.reasonActionable.trim().length >= 12 ? 15 : actionableNow ? 10 : 3;
   const convenience = signal.location.name.trim() && signal.location.neighborhood.trim() ? 5 : 0;
   const contextCompatibility = signal.category !== "other" && signal.kind !== "city_condition" ? 5 : 2;
-  const buzzScore = Math.max(0, Math.min(100, Math.round(timing + freshness + social + corroboration + sourceDiversity + actionability + convenience + contextCompatibility)));
-  return { freshnessMinutes, actionableNow, buzzScore, buzzLabel: buzzLabel(buzzScore) };
+  const buzzBreakdown: PulseBuzzBreakdown = { timing, freshness, social, corroboration, sourceDiversity, actionability, convenience, contextCompatibility };
+  const buzzScore = Math.max(0, Math.min(100, Math.round(Object.values(buzzBreakdown).reduce((sum, component) => sum + component, 0))));
+  return { freshnessMinutes, actionableNow, buzzScore, buzzLabel: buzzLabel(buzzScore), buzzBreakdown };
 }

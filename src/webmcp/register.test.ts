@@ -76,6 +76,7 @@ describe("WebMCP registration", () => {
       latestSeen: "2026-08-30T11:50:00.000Z", likelyActiveUntil: "2026-08-30T14:00:00.000Z",
       sourceUrls: ["https://x.com/one/status/1", "https://x.com/two/status/2"], freshnessMinutes: 10,
       actionableNow: true, buzzScore: 82, buzzLabel: "Very Hot", reasonActionable: "The activity is currently underway.",
+      buzzBreakdown: { timing: 20, freshness: 15, social: 8, corroboration: 8, sourceDiversity: 6, actionability: 15, convenience: 5, contextCompatibility: 5 },
     } });
     const tool = createWebMcpTools(actions).find((item) => item.name === "search_happenings");
     const result = await tool?.execute({ happeningKinds: ["live_signal"], minBuzzScore: 80, actionableNow: true }, { signal: new AbortController().signal });

@@ -60,7 +60,7 @@ const deferred = <T,>() => {
 describe("unified city startup", () => {
   const pulse = (cityId: CityId, placeName: string): CityPulsePayload => ({
     generatedAt: now.toISOString(), cityId, city: cityId === "stockholm" ? "Stockholm" : "San Francisco", status: "fresh",
-    signals: [{ id: `${cityId}-pulse`, kind: "live_signal", title: "Fresh nearby activity", summary: "Reported now.", category: "social", location: { name: placeName, neighborhood: "Central" }, timing: { firstSeen: "2026-09-02T11:30:00.000Z", latestSeen: "2026-09-02T11:50:00.000Z", likelyActiveUntil: "2026-09-02T14:00:00.000Z" }, social: { evidenceCount: 2, independentSourceCount: 2, sourceAccounts: ["one", "two"], confidence: 0.8, sourceUrls: ["https://x.com/one/status/1", "https://x.com/two/status/2"] }, tags: [], reasonActionable: "Two current reports support it.", freshnessMinutes: 10, actionableNow: true, buzzScore: 80, buzzLabel: "Very Hot" }],
+    signals: [{ id: `${cityId}-pulse`, kind: "live_signal", title: "Fresh nearby activity", summary: "Reported now.", category: "social", location: { name: placeName, neighborhood: "Central" }, timing: { firstSeen: "2026-09-02T11:30:00.000Z", latestSeen: "2026-09-02T11:50:00.000Z", likelyActiveUntil: "2026-09-02T14:00:00.000Z" }, social: { evidenceCount: 2, independentSourceCount: 2, sourceAccounts: ["one", "two"], confidence: 0.8, sourceUrls: ["https://x.com/one/status/1", "https://x.com/two/status/2"] }, tags: [], reasonActionable: "Two current reports support it.", freshnessMinutes: 10, actionableNow: true, buzzScore: 80, buzzLabel: "Very Hot", buzzBreakdown: { timing: 20, freshness: 15, social: 8, corroboration: 8, sourceDiversity: 6, actionability: 15, convenience: 5, contextCompatibility: 5 } }],
   });
 
   it("applies an available cold-start snapshot while keeping the Place catalog immediate", async () => {
@@ -167,6 +167,8 @@ describe("unified city startup", () => {
     expect(result).toMatchObject({ ok: true, applied: true, liveSignalCount: 1 });
     expect(read().currentPlan).toEqual(before);
     expect(read().eventInventory.sources.at(-1)).toMatchObject({ sourceId: "xai-san-francisco-social-pulse", status: "fresh" });
+    expect(actions.searchHappenings({ activeAt: now.toISOString(), happeningKinds: ["live_signal"] })).toMatchObject({ ok: true, count: 1 });
+    expect(actions.searchHappenings({ startAfter: "2026-09-03T07:00:00.000Z", endBefore: "2026-09-04T07:00:00.000Z", happeningKinds: ["live_signal"] })).toMatchObject({ ok: true, count: 0 });
   });
 
   it("degrades pulse failure without erasing canonical inventory", async () => {

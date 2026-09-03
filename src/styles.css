@@ -512,6 +512,9 @@ button:disabled { cursor: not-allowed; }
 .happening-card__evidence { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 7px; }
 .happening-card__evidence a { display: inline-flex; align-items: center; gap: 2px; color: hsl(var(--viz-active-mint)); font-family: var(--font-mono); font-size: 9px; text-decoration: none; }
 .happening-card__pulse-note { margin: -4px 0 10px; color: hsl(var(--muted-foreground)); font-family: var(--font-mono); font-size: 9px; }
+.happening-card__score { margin-top: 8px; color: hsl(var(--muted-foreground)); font-family: var(--font-mono); font-size: 9px; }
+.happening-card__score summary { cursor: pointer; color: hsl(var(--foreground) / .74); }
+.happening-card__score p { margin: 6px 0 0; font-family: var(--font-mono); font-size: 9px; }
 
 .timeline-empty {
   min-height: 470px;

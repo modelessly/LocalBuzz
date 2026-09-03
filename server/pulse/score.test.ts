@@ -17,6 +17,7 @@ describe("pulse scoring", () => {
     expect(high.buzzScore).toBe(sameInputs.buzzScore);
     expect(high.buzzScore).toBeGreaterThanOrEqual(0);
     expect(high.buzzScore).toBeLessThanOrEqual(100);
+    expect(Object.values(high.buzzBreakdown).reduce((sum, value) => sum + value, 0)).toBe(high.buzzScore);
   });
 
   it("decays freshness and maps stable labels", () => {

@@ -82,6 +82,16 @@ type Happening = {
     actionableNow: boolean
     buzzScore: number
     buzzLabel: "Quiet" | "Starting" | "Buzzing" | "Hot Now" | "Very Hot"
+    buzzBreakdown: {
+      timing: number
+      freshness: number
+      social: number
+      corroboration: number
+      sourceDiversity: number
+      actionability: number
+      convenience: number
+      contextCompatibility: number
+    }
     reasonActionable: string
     mergedIntoScheduledEvent?: boolean
   }

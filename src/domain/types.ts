@@ -37,6 +37,10 @@ export type SocialPulseMetadata = {
   actionableNow: boolean;
   buzzScore: number;
   buzzLabel: BuzzLabel;
+  buzzBreakdown: {
+    timing: number; freshness: number; social: number; corroboration: number;
+    sourceDiversity: number; actionability: number; convenience: number; contextCompatibility: number;
+  };
   reasonActionable: string;
   mergedIntoScheduledEvent?: boolean;
 };

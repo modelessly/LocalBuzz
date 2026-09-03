@@ -14,6 +14,7 @@ export type CityPulsePayload = {
     social: { evidenceCount: number; independentSourceCount: number; sourceAccounts: string[]; confidence: number; sourceUrls: string[] };
     tags: string[]; reasonActionable: string; freshnessMinutes: number; actionableNow: boolean; buzzScore: number;
     buzzLabel: "Quiet" | "Starting" | "Buzzing" | "Hot Now" | "Very Hot";
+    buzzBreakdown: SocialPulseMetadata["buzzBreakdown"];
   }>;
 };
 
@@ -26,6 +27,7 @@ const socialMetadata = (signal: CityPulsePayload["signals"][number], mergedIntoS
   likelyActiveUntil: signal.timing.likelyActiveUntil ?? undefined, sourceUrls: signal.social.sourceUrls,
   freshnessMinutes: signal.freshnessMinutes, actionableNow: signal.actionableNow,
   buzzScore: signal.buzzScore, buzzLabel: signal.buzzLabel, reasonActionable: signal.reasonActionable,
+  buzzBreakdown: signal.buzzBreakdown,
   mergedIntoScheduledEvent,
 });
 

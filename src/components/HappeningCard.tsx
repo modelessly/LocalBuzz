@@ -56,6 +56,10 @@ export function HappeningCard({
           <div className="happening-card__evidence">
             {pulse.sourceUrls.slice(0, 3).map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Evidence {index + 1}<ArrowUpRight aria-hidden="true" size={11} /></a>)}
           </div>
+          <details className="happening-card__score" onClick={(event) => event.stopPropagation()}>
+            <summary>Why this score</summary>
+            <p>{Object.entries(pulse.buzzBreakdown).map(([key, value]) => `${categoryLabel(key)} ${value}`).join(" · ")}</p>
+          </details>
         </div>
       ) : null}
       {pulse && !planningReady ? <p className="happening-card__pulse-note">Live evidence for discovery; itinerary use needs a confirmed price.</p> : null}
