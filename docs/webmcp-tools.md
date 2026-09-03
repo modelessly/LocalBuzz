@@ -9,12 +9,14 @@ The browser agent and human interface share the same `LocalBuzzActions` instance
 | Tool | Contract |
 | --- | --- |
 | `search_happenings` | Query active-city events by text, time, category, per-person price and distance; optionally filter by happening kind, minimum Buzz Score and current actionability. |
-| `show_candidates` | Show selected event IDs on the shared map and cards without adding them. |
+| `show_candidates` | Highlight selected event IDs on the shared map and cards without hiding unrelated visible events or adding stops. |
 | `search_places` | Query Places by purpose, price, mood, neighborhood, kind, distance and open-at time. |
-| `show_place_candidates` | Show selected Place IDs without adding them. |
+| `show_place_candidates` | Highlight selected Place IDs without replacing the human's visible Place listing or adding stops. |
 | `read_place_details` | Return the complete canonical Place record and operating evidence. |
 
 Search results never enter the itinerary automatically.
+
+Human search restrictions and agent candidate highlighting are separate. Candidate tools may promote a requested ID into the current listing, but never shrink it. Clearing human search recomputes the active city/time-window listing and preserves the itinerary and locks.
 
 Social results return `kind` plus optional `socialPulse` evidence, confidence, freshness, actionability and deterministic Buzz Score fields. Existing calls remain valid. A standalone pulse signal normally has unknown price and therefore cannot bypass the hard-budget planning guard; social support merged into a canonical scheduled event keeps that event's normal planning contract.
 

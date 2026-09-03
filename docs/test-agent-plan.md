@@ -36,7 +36,7 @@ No `stage_*`, `accept_staged_changes`, or `reject_staged_changes` tool should be
 Run in both San Francisco and Stockholm:
 
 1. Open the product and confirm the empty state says: “Your night is open. Add something from the map or ask the agent to build it.”
-2. Search events and Places. Confirm searching and showing candidates do not add stops.
+2. Search events and Places. Confirm human search narrows the listing, clearing it restores the complete active time window, and agent candidate highlighting does not hide unrelated results or add stops.
 3. Add one event. Confirm it appears immediately in the timeline and route, unlocked.
 4. Add dinner and drinks around the event. Confirm ordering, purpose labels, party-size cost, route and end time.
 5. Add a custom Place. Confirm it remains visibly custom/unverified and absent from canonical search.
@@ -52,6 +52,7 @@ Run in both San Francisco and Stockholm:
 15. Confirm the footer’s entire visible text is exactly `Local Buzz | 2026`.
 16. Check keyboard focus, screen-reader button names and narrow/mobile layout for Lock, Unlock and Remove.
 17. Enable reduced motion and repeat one agent addition; no prolonged or fake thinking state should appear.
+18. Confirm city-local dates, the time/estimated-price summary, truthful ticket/reservation/venue links, consumer-facing Options language, independent map/Your Night borders, and absence of the Shared State strip and internal pipeline badges.
 
 ## Reporting
 

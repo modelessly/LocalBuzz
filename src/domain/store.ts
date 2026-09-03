@@ -521,11 +521,11 @@ export class LocalBuzzActions {
     if (invalid) return error("INVALID_HAPPENING_ID", `Unknown happening: ${invalid}`);
     this.update((current) => ({
       ...current,
-      visibleHappeningIds: ids,
+      visibleHappeningIds: [...new Set([...current.visibleHappeningIds, ...ids])],
       candidateHappeningIds: ids,
       candidateReason: reason,
       selectedHappeningId: ids[0],
-      activityMessage: `${ids.length} candidates are now visible on the shared map.`,
+      activityMessage: `${ids.length} candidates are highlighted on the map and in the current listing.`,
       candidateReasonOrigin: reason ? origin : undefined,
       discoveryMode: "events",
     }));
@@ -578,13 +578,13 @@ export class LocalBuzzActions {
     if (invalid) return error("INVALID_PLACE_ID", `Unknown place: ${invalid}`);
     this.update((current) => ({
       ...current,
-      visiblePlaceIds: ids,
+      visiblePlaceIds: [...new Set([...current.visiblePlaceIds, ...ids])],
       candidatePlaceIds: ids,
       selectedPlaceId: ids[0],
       candidateReason: reason,
       candidateReasonOrigin: reason ? "agent" : undefined,
       discoveryMode: "places",
-      activityMessage: `${ids.length} place candidates are now visible on the shared map.`,
+      activityMessage: `${ids.length} place candidates are highlighted in the current listing.`,
     }));
     return { ok: true, visibleCount: ids.length };
   }

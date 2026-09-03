@@ -40,6 +40,8 @@ The template stays intentionally generic, so each new product still needs a real
 Status:
 Accepted
 
+---
+
 ## 2026-05-29: Keep V1 Scope Narrow By Default
 
 Decision:
@@ -581,3 +583,21 @@ Each uncached city refresh can make two paid searches. Signals without a known e
 
 Status:
 Accepted
+
+---
+
+## 2026-09-03: Separate Recommendations From Listings And Remove Admin UI Language
+
+Decision:
+Treat human listing filters and agent candidate emphasis as separate state concepts. Candidate tools may add emphasis without replacing the active time-window collection. Present acquisition leads as `Options`, remove pipeline counts and canonicalization terminology from the primary interface, and retain provenance through useful source links rather than an operational status strip.
+
+Your Night displays city-local time, estimated total price, state-labelled lock controls and truthful ticket, reservation or venue links. A dedicated reservation URL is distinct from the official homepage so labels cannot overclaim the destination.
+
+Reasoning:
+An agent recommendation should help attention without making the product appear to have only one event. Consumer decisions depend on clear itinerary state, readable local times and actionable destinations; ingestion and validation terminology does not help that decision.
+
+Tradeoffs:
+Per-source health and qualification enums remain available to domain/WebMCP consumers and operations, but no longer occupy the primary human surface. Existing Places without a dedicated reservation URL use the honest `Venue website` fallback. Candidate promotion can add a recommended record to a human-filtered listing, but never removes the human's current results.
+
+Status:
+Accepted; supersedes the visible admin-language and candidate-replacement portions of earlier discovery decisions.

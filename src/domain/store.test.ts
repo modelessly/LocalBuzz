@@ -82,6 +82,36 @@ describe("Local Buzz shared domain actions", () => {
     expect(state.currentPlan).toEqual(before);
   });
 
+  it("keeps candidate highlights separate from human result restrictions", () => {
+    state = { ...state, visibleHappeningIds: state.happenings.slice(0, 5).map((item) => item.id) };
+    const fullWindowIds = [...state.visibleHappeningIds];
+
+    const promotedId = state.happenings[5].id;
+    actions.showCandidates([promotedId], "Agent recommendation");
+    expect(state.visibleHappeningIds).toEqual([...fullWindowIds, promotedId]);
+    expect(state.candidateHappeningIds).toEqual([promotedId]);
+
+    actions.showListings(fullWindowIds.slice(0, 2), "Human search");
+    expect(state.visibleHappeningIds).toEqual(fullWindowIds.slice(0, 2));
+    expect(state.candidateHappeningIds).toEqual([]);
+
+    actions.buildEveningPlan(initialStops);
+    actions.lockPlanStop("stop-2");
+    const plan = structuredClone(state.currentPlan);
+    actions.showListings(fullWindowIds, "Search cleared");
+    expect(state.visibleHappeningIds).toEqual(fullWindowIds);
+    expect(state.currentPlan).toEqual(plan);
+  });
+
+  it("keeps place candidate highlights separate from the visible place catalog", () => {
+    const visibleIds = state.places.slice(0, 5).map((item) => item.id);
+    state = { ...state, visiblePlaceIds: visibleIds };
+    const promotedId = state.places[5].id;
+    actions.showPlaceCandidates([promotedId], "Agent recommendation");
+    expect(state.visiblePlaceIds).toEqual([...visibleIds, promotedId]);
+    expect(state.candidatePlaceIds).toEqual([promotedId]);
+  });
+
   it("locks and unlocks a stop in the canonical plan", () => {
     actions.buildEveningPlan(initialStops);
     expect(actions.lockPlanStop("stop-2")).toEqual({ ok: true, stopId: "stop-2", locked: true });

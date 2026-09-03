@@ -160,3 +160,4 @@
 - [x] Phase 4 WebMCP event/Place discovery leads with visible human review.
 - [x] Phase 5 deterministic coverage cube, targeted gap discovery and corroboration-required municipal radar through the lead frontier.
 - [x] Phase 6 bounded event graph, external coverage benchmarks, operational hardening and final deterministic data audit.
+- [x] Separate agent candidate emphasis from human listings and refine consumer-facing itinerary, Options, localized date and booking-link presentation.

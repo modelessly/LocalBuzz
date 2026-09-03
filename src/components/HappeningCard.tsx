@@ -1,7 +1,7 @@
 import { ArrowUpRight, Clock3, MapPin, Plus, RefreshCw, X } from "lucide-react";
 import { ModelessButton, SignalBadge } from "@modeless/design-system";
 import type { Happening } from "../domain/types";
-import { categoryLabel, formatDay, formatTime, priceLabel } from "../lib/format";
+import { categoryLabel, formatDateTimeRange, formatDay, priceLabel } from "../lib/format";
 
 type HappeningCardProps = {
   happening: Happening;
@@ -64,7 +64,7 @@ export function HappeningCard({
       ) : null}
       {pulse && !planningReady ? <p className="happening-card__pulse-note">Live evidence for discovery; itinerary use needs a confirmed price.</p> : null}
       <dl className="happening-card__meta">
-        <div><Clock3 aria-hidden="true" size={14} /><span>{formatTime(happening.timing.start, timeZone)} · {priceLabel(happening.commerce.priceMin, happening.commerce.currency)}</span></div>
+        <div><Clock3 aria-hidden="true" size={14} /><span><time dateTime={happening.timing.start}>{formatDateTimeRange(happening.timing.start, happening.timing.end, timeZone, !happening.timing.end)}</time> · {priceLabel(happening.commerce.priceMin, happening.commerce.currency)}</span></div>
         <div><MapPin aria-hidden="true" size={14} /><span>{happening.venue.name} · {happening.venue.neighborhood}</span></div>
       </dl>
       <div className="tag-row">

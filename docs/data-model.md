@@ -268,6 +268,8 @@ type OpeningHoursEvidence = {
 
 Search filters now include purpose, maximum per-person price, mood, neighborhood, kind and an ISO `openAt` arrival. UI and WebMCP calls share `LocalBuzzActions.searchPlaces`; open-at filtering excludes records whose operating state cannot be established.
 
+`Place.reservationUrl` is an optional dedicated booking destination and is never inferred from `officialWebsite`. The UI labels it `Reserve table` for restaurants or `Reserve` for other reservable Places. When it is absent, a valid official homepage may be offered only as `Venue website`.
+
 Planning remains stricter than discovery. It rejects closed visits, arrivals after a known kitchen cutoff, unknown price/hours, currency mismatch, party-size budget excess, overlapping adjacent stops, insufficient visit duration and reservation-required spontaneous stops. It returns specific plain-language warnings for incomplete or stale operating evidence, unknown exceptional hours, custom-place assumptions and recommended reservations. Internal qualification enum names are not rendered as UI tags.
 
 ## Phase 3 ingestion contracts
@@ -305,3 +307,5 @@ Every direct plan mutation reuses canonical Place visit validation and event ava
 `LocalBuzzState.eventInventory` is the canonical browser contract for event availability. It carries city/request/generated-at identity, refresh state, current/retained/expired totals, and `EventSourceState[]`.
 
 Each source exposes identifier/publisher, `fresh | retained | unavailable | disabled | invalid | refreshing`, attempt and last-success times, accepted/rejected/retained/expired counts, empty-success state and a safe reason. This is operational metadata, not another copy of `Happening`; canonical records remain in `state.happenings` and plans continue to reference stable IDs.
+
+Visible listing IDs and candidate IDs have distinct meanings. Listing IDs are controlled by the active time window and explicit human searches/filters. Candidate IDs are an additive map/card emphasis layer and cannot reduce the listing. Neither collection owns or mutates the itinerary.

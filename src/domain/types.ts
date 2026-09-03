@@ -82,6 +82,7 @@ export type Place = {
   cityId: CityId;
   name: string;
   officialWebsite?: string;
+  reservationUrl?: string;
   kind: PlaceKind;
   location: {
     lat: number;
@@ -435,6 +436,7 @@ export type EventDiscoveryFields = {
 export type PlaceDiscoveryFields = {
   name?: string;
   officialWebsite?: string;
+  reservationUrl?: string;
   kind?: PlaceKind;
   location?: { lat?: number; lng?: number; address?: string; neighborhood?: string };
   cuisine?: string[];

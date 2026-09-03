@@ -8,7 +8,6 @@ import { EveningTimeline } from "./components/EveningTimeline";
 import { HappeningCard } from "./components/HappeningCard";
 import { PlaceCard } from "./components/PlaceCard";
 import { DiscoveryReview } from "./components/DiscoveryReview";
-import { SourceStatus } from "./components/SourceStatus";
 import { cityIds, getCityDefinition } from "./data/cities";
 import { createInitialState, LocalBuzzActions } from "./domain/store";
 import type { CityId, DomainResult, LocalBuzzState, PlaceKind, PlacePurpose, PlaceSearchFilters } from "./domain/types";
@@ -22,7 +21,7 @@ import {
   type TimeSelection,
 } from "./lib/timeSearch";
 import { refreshCityData, refreshCityPulseData } from "./lib/cityStartup";
-import { browserTitle, candidateReasonLead, inventoryCountLabel, inventorySummaryLabel, placeCandidateSummary } from "./lib/presentation";
+import { browserTitle, candidateReasonLead, placeCandidateSummary } from "./lib/presentation";
 import { registerWebMcp } from "./webmcp/register";
 import type { AgentActivity } from "./webmcp/activity";
 
@@ -48,7 +47,7 @@ export function App() {
   }
   const actions = actionsRef.current;
   const city = getCityDefinition(state.activeCityId);
-  const [query, setQuery] = useState(city.searchDefaults.query);
+  const [query, setQuery] = useState("");
   const [timeSelection, setTimeSelection] = useState<TimeSelection>("now");
   const refreshSequenceRef = useRef(0);
   const [selectedDate, setSelectedDate] = useState(() => localDate(new Date(), city.timeZone));
@@ -148,7 +147,7 @@ export function App() {
   };
 
   useEffect(() => {
-    if (state.eventInventory.refreshing || state.candidateHappeningIds.length) return;
+    if (state.eventInventory.refreshing) return;
     const searchWindow = getSearchWindow(timeSelection, selectedDate, city.timeZone);
     const result = actions.searchHappenings({
       startAfter: searchWindow.startAfter,
@@ -162,7 +161,7 @@ export function App() {
         `${result.count} happenings match ${searchContextFor(timeSelection, selectedDate)}.`,
       );
     }
-  }, [actions, city.timeZone, selectedDate, state.activeCityId, state.candidateHappeningIds.length, state.eventInventory.generatedAt, state.eventInventory.refreshing, state.happenings.length, timeSelection]);
+  }, [actions, city.timeZone, selectedDate, state.activeCityId, state.eventInventory.generatedAt, state.eventInventory.refreshing, state.happenings.length, timeSelection]);
 
   const search = () => {
     if (!query.trim()) {
@@ -181,12 +180,11 @@ export function App() {
       maxResults: 9,
     });
     if (result.ok) {
-      actions.showCandidates(
+      actions.showListings(
         result.happenings.map((item) => item.id),
-        `Matches “${query}” near ${city.constraints.startLocation.label}`,
-        "human",
+        `Search results for “${query}” near ${city.constraints.startLocation.label}.`,
       );
-      setFeedback(`${result.count} candidates surfaced on the map.`);
+      setFeedback(`${result.count} happenings match your search.`);
     } else handleResult(result);
   };
 
@@ -263,7 +261,7 @@ export function App() {
   const switchCity = (cityId: CityId) => {
     const nextCity = getCityDefinition(cityId);
     actions.switchCity(cityId);
-    setQuery(nextCity.searchDefaults.query);
+    setQuery("");
     setSelectedDate(localDate(new Date(), nextCity.timeZone));
     setPlaceFilterState({ purpose: "", kind: "", mood: "", neighborhood: "", maxPrice: "", openAt: false });
     setFeedback(`${nextCity.name} is now active. The previous city night was cleared.`);
@@ -364,8 +362,7 @@ export function App() {
       <div className="workspace">
         <ModelessPanel
           className="map-panel"
-          title={`${city.name} in reach`}
-          actions={<span className="inventory-count">{inventoryCountLabel(visibleHappenings.length, visiblePlaces.length, state.eventInventory.currentCount, state.places.length)}</span>}
+          title={city.name}
           motion="subtle"
         >
           <CityMap
@@ -391,7 +388,6 @@ export function App() {
         <ModelessPanel
           className="night-panel"
           title="Your night"
-          actions={<span className="end-cap">By 00:00</span>}
           motion="subtle"
         >
           <EveningTimeline
@@ -409,17 +405,13 @@ export function App() {
         </ModelessPanel>
       </div>
 
-      <section className="activity-bar" aria-live="polite">
-        <span className="activity-bar__pulse" />
-        <strong>Shared state</strong>
-        <p>{inventorySummaryLabel(state.eventInventory, state.places.length)} {feedback ?? state.activityMessage}</p>
-        <SourceStatus inventory={state.eventInventory} />
-      </section>
+      {feedback ? <p className="product-feedback" role="status">{feedback}</p> : null}
 
       <DiscoveryReview
         leads={state.discoveryLeads}
-        onAccept={(id) => handleResult(actions.acceptDiscoveryLead(id), "Discovery lead accepted into canonical inventory.")}
-        onReject={(id) => handleResult(actions.rejectDiscoveryLead(id), "Discovery lead rejected; inventory unchanged.")}
+        timeZone={city.timeZone}
+        onAccept={(id) => handleResult(actions.acceptDiscoveryLead(id), "Added to Options.")}
+        onReject={(id) => handleResult(actions.rejectDiscoveryLead(id), "Option removed.")}
         onKeepCustom={(id) => {
           const plannedStart = localDateTimeToIso(selectedDate, "20:00:00", city.timeZone);
           handleResult(actions.keepDiscoveryLeadAsCustom(id, {
@@ -427,7 +419,7 @@ export function App() {
             plannedStart,
             availableFrom: localDateTimeToIso(selectedDate, "17:00:00", city.timeZone),
             availableUntil: localDateTimeToIso(shiftIsoDate(selectedDate, 1), "00:00:00", city.timeZone),
-          }), "Place retained as a custom stop outside the catalog.");
+          }), "Added to Your Night.");
         }}
       />
 
@@ -458,11 +450,8 @@ export function App() {
         {state.candidateReason ? (
           <div className="candidate-reason">
             <span>{discoveryMode === "places" && state.candidatePlaceIds.length
-              ? `${placeCandidateSummary(state.candidatePlaceIds.length, state.places.length, state.candidateReasonOrigin)} ${state.candidateReason}`
+              ? `${placeCandidateSummary(state.candidatePlaceIds.length, state.candidateReasonOrigin)} ${state.candidateReason}`
               : `${candidateReasonLead(state.candidateReasonOrigin)}: ${state.candidateReason}`}</span>
-            {discoveryMode === "places" && state.candidatePlaceIds.length < state.places.length ? (
-              <button type="button" onClick={() => actions.showPlaceListings(state.places.map((item) => item.id), `All ${state.places.length} canonical Places restored.`)}>Show all places</button>
-            ) : null}
           </div>
         ) : null}
         {discoveryMode === "places" ? (

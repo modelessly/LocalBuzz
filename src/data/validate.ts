@@ -46,6 +46,7 @@ export const validatePlaces = (items: Place[]) => {
     if (!placeKinds.has(item.kind)) errors.push(`Invalid place kind: ${item.id}`);
     if (!item.name.trim()) errors.push(`Missing place name: ${item.id}`);
     if (!item.officialWebsite?.startsWith("https://")) errors.push(`Missing official website: ${item.id}`);
+    if (item.reservationUrl && !item.reservationUrl.startsWith("https://")) errors.push(`Invalid reservation URL: ${item.id}`);
     if (!item.location.address.trim() || !item.location.neighborhood.trim()) errors.push(`Missing place location: ${item.id}`);
     if (item.location.lat < -90 || item.location.lat > 90) errors.push(`Invalid place latitude: ${item.id}`);
     if (item.location.lng < -180 || item.location.lng > 180) errors.push(`Invalid place longitude: ${item.id}`);

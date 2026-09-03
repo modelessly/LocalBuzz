@@ -132,6 +132,8 @@ Tools use strict JSON schemas, structured errors, and abort-signal-owned registr
 
 The conversation does not happen inside Local Buzz. The user talks to their personal agent in a WebMCP-aware browser's agent panel. While this page is open, the browser discovers the tools above; the agent calls them and the resulting candidates or current plan appear in the same map and timeline the human can edit.
 
+Candidate emphasis is additive: agent-highlighted events or Places never replace the human's active city/time-window listing. Explicit human search can narrow the list, and clearing it restores the selected window without changing Your Night or its locks. The itinerary uses city-local dates and times, shows only its time range and estimated party total, and links to tickets, dedicated reservations, event details or official venue websites only when the corresponding destination is valid.
+
 ## Map provider
 
 The prototype uses [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) with [OpenFreeMap](https://openfreemap.org/quick_start/). OpenFreeMap's public instance requires no account or API key and automatically supplies the required OpenStreetMap/OpenMapTiles attribution through MapLibre. It does not provide an SLA, so a production launch should either sponsor/self-host the same open stack or choose a supported commercial tile provider.

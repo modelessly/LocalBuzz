@@ -1,8 +1,9 @@
-import { Lock, Sparkles, Unlock, X } from "lucide-react";
+import { ArrowUpRight, Lock, Sparkles, Unlock, X } from "lucide-react";
 import { ModelessButton } from "@modeless/design-system";
 import type { EveningPlan, Happening, LocalBuzzState, Place, PlanStop } from "../domain/types";
 import type { AgentActivity } from "../webmcp/activity";
-import { formatTime, priceLabel } from "../lib/format";
+import { formatDateTimeRange, formatTimeRange, priceLabel } from "../lib/format";
+import { timelineStopLink } from "../lib/timelineLinks";
 
 type EveningTimelineProps = {
   currentPlan: EveningPlan | null;
@@ -32,6 +33,10 @@ export function EveningTimeline({
   const plan = currentPlan;
   const byId = new Map(happenings.map((item) => [item.id, item]));
   const byPlaceId = new Map(places.map((item) => [item.id, item]));
+  const lastStop = plan?.stops.at(-1);
+  const estimatedEnd = lastStop?.kind === "happening"
+    ? !byId.get(lastStop.happeningId)?.timing.end
+    : Boolean(lastStop);
   const stopDetails = (stop: PlanStop) => {
     if (stop.kind === "happening") {
       const item = byId.get(stop.happeningId);
@@ -67,14 +72,13 @@ export function EveningTimeline({
 
   return (
     <div className="timeline">
-      <div className="timeline__status">
-        <span>{priceLabel(plan.totalEstimatedCost, plan.constraints.currency)} / {priceLabel(plan.constraints.budget, plan.constraints.currency)}</span>
-      </div>
       <ol className="timeline__stops">
         {plan.stops.map((stop, index) => {
           const details = stopDetails(stop);
           if (!details) return null;
           const unavailable = stop.status === "unavailable" || details.unavailable;
+          const link = timelineStopLink(stop, happenings, places);
+          const stopEndEstimated = stop.kind === "happening" ? !byId.get(stop.happeningId)?.timing.end : true;
           return (
             <li
               key={stop.id}
@@ -83,7 +87,7 @@ export function EveningTimeline({
             >
               <div className="timeline__rail"><span>{index + 1}</span></div>
               <div className="timeline__stop-body">
-                <div className="timeline__stop-time">{formatTime(stop.plannedStart, timeZone)}–{formatTime(stop.plannedEnd, timeZone)}</div>
+                <div className="timeline__stop-time"><time dateTime={stop.plannedStart}>{formatDateTimeRange(stop.plannedStart, stop.plannedEnd, timeZone, stopEndEstimated)}</time></div>
                 <div className="timeline__stop-title">
                   <strong>{details.title}</strong>
                 </div>
@@ -96,14 +100,15 @@ export function EveningTimeline({
                   <p className="timeline__availability" role="status">Unavailable</p>
                 ) : null}
                 <div className="timeline__stop-actions">
-                  <button type="button" className={`timeline__lock-action ${stop.locked ? "is-locked" : ""}`} aria-pressed={stop.locked} aria-label={stop.locked ? `Unlock ${details.title}` : `Lock ${details.title}`} title={stop.locked ? "Locked — click to unlock" : "Lock this stop"} onClick={() => (stop.locked ? onUnlock(stop.id) : onLock(stop.id))}>
-                    {stop.locked ? <Unlock aria-hidden="true" size={14} /> : <Lock aria-hidden="true" size={14} />}
-                    {stop.locked ? "Locked" : "Lock"}
+                  <button type="button" className={`timeline__lock-action ${stop.locked ? "is-locked" : ""}`} aria-pressed={stop.locked} aria-label={stop.locked ? `Locked — unlock ${details.title}` : `Unlocked — lock ${details.title}`} title={stop.locked ? "Locked — click to unlock" : "Unlocked — click to lock"} onClick={() => (stop.locked ? onUnlock(stop.id) : onLock(stop.id))}>
+                    {stop.locked ? <Lock aria-hidden="true" size={14} /> : <Unlock aria-hidden="true" size={14} />}
+                    {stop.locked ? "Locked" : "Unlocked"}
                   </button>
-                  <button type="button" className="timeline__remove-action" aria-label={`Remove ${details.title}`} onClick={() => onRemove(stop.id)}>
+                  <button type="button" className="timeline__remove-action" aria-label={`Remove ${details.title} from Your Night`} title={`Remove ${details.title} from Your Night`} onClick={() => onRemove(stop.id)}>
                     <X aria-hidden="true" size={14} /> Remove
                   </button>
                 </div>
+                {link ? <a className="timeline__external-link" href={link.href} target="_blank" rel="noopener noreferrer" aria-label={link.accessibleLabel}>{link.label} <ArrowUpRight aria-hidden="true" size={12} /></a> : null}
               </div>
             </li>
           );
@@ -111,10 +116,10 @@ export function EveningTimeline({
       </ol>
       <div className="timeline__summary">
         <div>
-          <span>Ends</span>
-          <strong>{formatTime(plan.endTime, timeZone)}</strong>
+          <span>Time</span>
+          <strong title={estimatedEnd ? "The ending time is estimated from the final stop's typical duration." : undefined} aria-label={estimatedEnd ? `${formatTimeRange(plan.startTime, plan.endTime, timeZone)}. Ending time estimated.` : undefined}>{formatTimeRange(plan.startTime, plan.endTime, timeZone)}</strong>
         </div>
-        <div><span>Total</span><strong>{priceLabel(plan.totalEstimatedCost, plan.constraints.currency)}</strong></div>
+        <div><span>Estimated price</span><strong>{priceLabel(plan.totalEstimatedCost, plan.constraints.currency)}</strong></div>
       </div>
     </div>
   );

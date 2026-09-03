@@ -65,7 +65,8 @@ describe("Place catalog subset and shared inventory", () => {
     actions.addPlaceStop({ placeId: "sf-horsefeather", purpose: "dinner", plannedStart: "2026-09-02T18:00:00-07:00" });
     const before = structuredClone(read().currentPlan);
     actions.showPlaceCandidates(["sf-trick-dog", "sf-benders"], "Two agent choices");
-    expect(read()).toMatchObject({ visiblePlaceIds: ["sf-trick-dog", "sf-benders"], candidatePlaceIds: ["sf-trick-dog", "sf-benders"] });
+    expect(read()).toMatchObject({ candidatePlaceIds: ["sf-trick-dog", "sf-benders"] });
+    expect(read().visiblePlaceIds).toHaveLength(33);
     actions.showPlaceListings(read().places.map((place) => place.id), "Full catalog restored.");
     expect(read().visiblePlaceIds).toHaveLength(33);
     expect(read().candidatePlaceIds).toEqual([]);

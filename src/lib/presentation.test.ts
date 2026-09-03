@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { browserTitle, candidateReasonLead, inventoryCountLabel, placeCandidateSummary } from "./presentation";
+import { browserTitle, candidateReasonLead, placeCandidateSummary } from "./presentation";
 
 describe("shared-state presentation copy", () => {
   it("uses the active city in the browser title", () => {
     expect(browserTitle("San Francisco")).toBe("Local Buzz · San Francisco");
   });
 
-  it("distinguishes records in view from the full current inventory", () => {
-    expect(inventoryCountLabel(0, 2, 0, 33)).toBe("2 in view · 0 current events · 33 places");
-    expect(placeCandidateSummary(2, 33, "agent")).toBe("2 agent-selected candidates from 33 places.");
+  it("describes highlighted place candidates without inventory pipeline counts", () => {
+    expect(placeCandidateSummary(2, "agent")).toBe("2 agent-selected options.");
   });
 
   it("does not attribute a human search to an agent", () => {
@@ -31,5 +30,17 @@ describe("shared-state presentation copy", () => {
     expect(interfaceSource).not.toMatch(/MISSION 01|mission-strip|city\.mission/i);
     expect(interfaceSource).not.toMatch(/needs[ _-]review|unverified|source verified/i);
     expect(interfaceSource).not.toMatch(/hours and prices? unavailable for planning/i);
+    expect(interfaceSource).not.toMatch(/shared state|agent acquisition|discovery review|awaiting review|accepted canonical|provisional|discovery only|canonical fields are ready for review|evidence references/i);
+  });
+
+  it("keeps the top panels independent and preserves the exact footer", () => {
+    const app = readFileSync("src/App.tsx", "utf8");
+    const styles = readFileSync("src/styles.css", "utf8");
+    expect(app).toContain('title={city.name}');
+    expect(app).not.toContain("in reach");
+    expect(app).toContain("Local Buzz | 2026");
+    expect(styles).toMatch(/\.workspace\s*\{[^}]*gap:\s*24px[^}]*background:\s*transparent/s);
+    expect(styles).toMatch(/\.map-panel, \.night-panel\s*\{[^}]*overflow:\s*hidden[^}]*contain:\s*paint/s);
+    expect(styles).not.toMatch(/\.workspace::(?:before|after)/);
   });
 });
